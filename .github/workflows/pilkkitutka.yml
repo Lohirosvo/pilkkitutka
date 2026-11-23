@@ -1,4 +1,4 @@
-# Pilkkitutka – hakuajo ja julkaisu GitHub Pagesiin (v003, 23.11.2026)
+# Pilkkitutka – hakuajo ja julkaisu GitHub Pagesiin (v004, 23.11.2026)
 # Toimenpideversiot samat kuin merilohitutkan toimivassa ajossa 22.11.2026.
 name: Pilkkitutka
 
@@ -18,6 +18,7 @@ on:
       - "sw.js"
       - "hae_pilkki.py"
       - "hae_syvyys.py"
+      - "hae_vaylat.py"
       - "kartta.js"
       - "tilanne.js"
       - "manifest.json"
