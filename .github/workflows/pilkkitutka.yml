@@ -1,1 +1,78 @@
+# Pilkkitutka – hakuajo ja julkaisu GitHub Pagesiin (v001, 23.11.2026)
+# Toimenpideversiot samat kuin merilohitutkan toimivassa ajossa 22.11.2026.
+name: Pilkkitutka
 
+on:
+  schedule:
+    - cron: "23 1,7,13,19 * * *"   # neljästi vuorokaudessa (UTC)
+  workflow_dispatch:
+    inputs:
+      tilasto:
+        description: "Laske mareografien talvitilasto leirin vedenkorkeusvahtiin (kestää 10–20 min)"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "sw.js"
+      - "hae_pilkki.py"
+      - ".github/workflows/pilkkitutka.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  kokoa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Asenna Copernicus-työkalu
+        run: pip install copernicusmarine
+
+      - name: Kokoa sivusto ja ota edellinen data talteen
+        run: |
+          mkdir -p _site/data
+          cp index.html sw.js _site/
+          touch _site/.nojekyll
+          curl -sfL "https://lohirosvo.github.io/pilkkitutka/data/pilkki.json" \
+            -o _site/data/pilkki_ed.json || echo "Ei aiempaa dataa"
+
+      - name: Hae data
+        env:
+          COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_SERVICE_USERNAME }}
+          COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_SERVICE_PASSWORD }}
+          TILASTO: ${{ github.event.inputs.tilasto }}
+        run: |
+          LISA=""
+          if [ "$TILASTO" = "true" ]; then LISA="--tilasto"; fi
+          python hae_pilkki.py _site/data/pilkki.json --edellinen _site/data/pilkki_ed.json $LISA
+          rm -f _site/data/pilkki_ed.json
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  julkaise:
+    needs: kokoa
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.julkaisu.outputs.page_url }}
+    steps:
+      - id: julkaisu
+        uses: actions/deploy-pages@v5
