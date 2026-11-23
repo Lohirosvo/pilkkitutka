@@ -3,94 +3,146 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d3b52">
+<meta name="theme-color" content="#0a2150">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Pilkkitutka</title>
 <style>
+  /* Logon tyyli (Hannu 23.11.2026): syvä sininen, jäinen hehku, kulta, tutkanvihreä. ☀ = vaalea aurinkotila. */
   :root {
-    --tausta: #eef3f6; --kortti: #ffffff; --teksti: #0f1d26; --hiljainen: #5a6b77;
-    --pää: #0d3b52; --raja: #d5dee5;
-    --punainen: #b3261e; --punainen-t: #fde8e6; --keltainen: #8a5a00; --keltainen-t: #fff3d6;
-    --info: #2c5d7c; --info-t: #e6f0f6; --vesi: #1f6fb2; --ennuste: #7a4fb5; --leiri: #b3261e; --il: #c28a00;
+    --tausta: #0a2150; --tausta-kuvio: radial-gradient(ellipse at 50% -10%, #1f6fc9 0%, #0d3a7a 38%, #0a2150 70%, #061634 100%);
+    --kortti: rgba(9, 36, 88, 0.92); --kortti-reuna: #2c78c8; --hehku: 0 0 14px rgba(79, 195, 247, .22);
+    --teksti: #eef7ff; --hiljainen: #a9c7e4; --otsikko: #ffc928; --kulta1: #ffe082; --kulta2: #ffb300; --kulta-teksti: #0a1f4d;
+    --pää: #ffc928; --jaa: #7fdcff; --tutka: #7dff5a; --raja: #24538f; --syote: #071a3f;
+    --punainen: #ff6b6b; --punainen-t: rgba(255, 90, 90, .18); --keltainen: #ffc928; --keltainen-t: rgba(255, 201, 40, .15);
+    --info: #6fd3ff; --info-t: rgba(111, 211, 255, .12); --hyva-t: rgba(125, 255, 90, .12);
+    --ruudukko: #1f467a; --akseli: #a9c7e4; --nyt: #ffffff;
+    --vari-vesi: #6fd3ff; --vari-ennuste: #ffc928; --vari-leiri: #ff6b6b; --vari-il: #ff9f1a;
+    --nav: rgba(6, 22, 54, .96); --toissijainen: rgba(127, 220, 255, .12);
+  }
+  body.aurinko {
+    --tausta: #e7f1fa; --tausta-kuvio: linear-gradient(#f4f9fd, #e2eef8);
+    --kortti: #ffffff; --kortti-reuna: #9cc4e4; --hehku: 0 1px 4px rgba(10, 40, 90, .12);
+    --teksti: #0a1f4d; --hiljainen: #45607a; --otsikko: #0b3f86;
+    --jaa: #0b6aa8; --tutka: #2e8b1e; --raja: #cfe0ee; --syote: #ffffff;
+    --punainen: #c62828; --punainen-t: #fde8e6; --keltainen: #a36b00; --keltainen-t: #fff3d6;
+    --info: #1e5f8f; --info-t: #e6f0f6; --hyva-t: #eaf6e6;
+    --ruudukko: #e1eaf1; --akseli: #5a6b77; --nyt: #0a1f4d;
+    --vari-vesi: #1f6fb2; --vari-ennuste: #a36b00; --vari-leiri: #c62828; --vari-il: #e07b00;
+    --nav: #0d3a7a; --toissijainen: #e4eef6;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--tausta); color: var(--teksti);
     font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { background: var(--pää); color: #fff; padding: 10px 14px calc(10px) 14px;
-    padding-top: calc(10px + env(safe-area-inset-top)); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  header h1 { font-size: 20px; margin: 0; }
-  header .tila { font-size: 14px; opacity: .9; }
-  nav { display: flex; background: var(--pää); position: sticky; top: 0; z-index: 5; }
-  nav button { flex: 1; background: none; border: 0; color: #cfe0ea; font: inherit; font-weight: 600;
+  body { background: var(--tausta-kuvio); background-attachment: fixed; min-height: 100vh; }
+  header { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, rgba(31, 111, 201, .55), rgba(6, 22, 54, .2)); border-bottom: 1px solid rgba(127, 220, 255, .35); }
+  header img { width: 42px; height: 42px; border-radius: 10px; box-shadow: 0 0 10px rgba(79, 195, 247, .5); flex: 0 0 auto; }
+  header h1 { margin: 0; font: 900 24px/1 system-ui, sans-serif; letter-spacing: .04em; text-transform: uppercase;
+    background: linear-gradient(180deg, var(--kulta1) 10%, var(--kulta2) 60%, #ff8f00 100%); -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-stroke: 1px #3b2300; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); }
+  header .tila { font-size: 13px; color: #cfe6f7; flex: 1 1 auto; }
+  body.aurinko header .tila { color: #0a1f4d; }
+  .teema { background: rgba(255, 255, 255, .12); border: 1px solid rgba(127, 220, 255, .5); color: #ffe082; border-radius: 10px;
+    min-width: 44px; min-height: 44px; font-size: 22px; }
+  nav { display: flex; background: var(--nav); position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+  nav button { flex: 1; background: none; border: 0; color: #a9c7e4; font: inherit; font-weight: 800; letter-spacing: .02em;
     padding: 12px 4px; border-bottom: 4px solid transparent; min-height: 52px; }
-  nav button.valittu { color: #fff; border-bottom-color: #ffd34d; }
+  nav button.valittu { color: #ffc928; border-bottom-color: #ffc928; text-shadow: 0 0 8px rgba(255, 201, 40, .5); }
   main { padding: 10px 10px 40px; max-width: 720px; margin: 0 auto; }
-  .kortti { background: var(--kortti); border-radius: 12px; padding: 12px 14px; margin: 0 0 10px;
-    border: 1px solid var(--raja); }
-  .kortti h2 { font-size: 17px; margin: 0 0 8px; color: var(--pää); }
+  .kortti { background: var(--kortti); border-radius: 14px; padding: 12px 14px; margin: 0 0 10px;
+    border: 1px solid var(--kortti-reuna); box-shadow: var(--hehku); }
+  .kortti h2 { font-size: 16px; margin: 0 0 8px; color: var(--otsikko); text-transform: uppercase; letter-spacing: .05em; font-weight: 900; }
   .hiljainen { color: var(--hiljainen); }
   .pieni { font-size: 14px; }
-  .iso { font-size: 26px; font-weight: 700; }
+  .iso { font-size: 26px; font-weight: 800; }
   .rivi { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .rivi > * { flex: 1 1 140px; }
   label { display: block; font-size: 14px; color: var(--hiljainen); margin-bottom: 2px; }
-  input, select { font: inherit; width: 100%; padding: 10px; border: 1px solid #9fb2bf; border-radius: 8px;
-    min-height: 50px; background: #fff; color: var(--teksti); }
-  input[type=checkbox] { width: 28px; min-height: 28px; height: 28px; }
-  button.nappi { font: inherit; font-weight: 700; min-height: 54px; border-radius: 10px; border: 0;
-    background: var(--pää); color: #fff; padding: 10px 16px; width: 100%; }
-  button.nappi.toissijainen { background: #dfe8ee; color: var(--pää); }
+  input, select { font: inherit; width: 100%; padding: 10px; border: 1px solid var(--kortti-reuna); border-radius: 10px;
+    min-height: 50px; background: var(--syote); color: var(--teksti); }
+  input[type=checkbox] { width: 28px; min-height: 28px; height: 28px; accent-color: #ffb300; }
+  button.nappi { font: inherit; font-weight: 800; min-height: 54px; border-radius: 12px; border: 1px solid #8a5a00;
+    background: linear-gradient(180deg, var(--kulta1), var(--kulta2)); color: var(--kulta-teksti); padding: 10px 16px; width: 100%;
+    box-shadow: 0 2px 0 #8a5a00, 0 0 10px rgba(255, 193, 7, .25); }
+  button.nappi:active { transform: translateY(1px); box-shadow: 0 1px 0 #8a5a00; }
+  button.nappi:disabled { opacity: .6; }
+  button.nappi.toissijainen { background: var(--toissijainen); color: var(--jaa); border: 1px solid var(--kortti-reuna); box-shadow: none; }
+  button.nappi.vaara { background: linear-gradient(180deg, #ff8a80, #d32f2f); color: #fff; border-color: #7f0000; box-shadow: 0 2px 0 #7f0000; }
   .varoitus { border-radius: 10px; padding: 10px 12px; margin: 0 0 8px; border-left: 8px solid; }
   .varoitus.punainen { background: var(--punainen-t); border-color: var(--punainen); }
   .varoitus.keltainen { background: var(--keltainen-t); border-color: var(--keltainen); }
   .varoitus.info { background: var(--info-t); border-color: var(--info); }
-  .varoitus.tyhja { background: #eef5ee; border-color: #4d7d4d; }
+  .varoitus.tyhja { background: var(--hyva-t); border-color: var(--tutka); }
   .varoitus b { display: block; }
   .peruste { display: inline-block; font-size: 12px; margin-top: 4px; padding: 1px 7px; border-radius: 9px;
-    background: rgba(0,0,0,.07); color: #333; }
-  .taso { font-size: 12px; padding: 1px 6px; border-radius: 8px; background: #e7edf1; color: #3b4d59; white-space: nowrap; }
+    background: var(--toissijainen); color: var(--jaa); }
+  .taso { font-size: 12px; padding: 1px 6px; border-radius: 8px; background: var(--toissijainen); color: var(--jaa); white-space: nowrap; }
   table { width: 100%; border-collapse: collapse; font-size: 15px; }
   th, td { padding: 6px 4px; border-bottom: 1px solid var(--raja); text-align: right; }
+  th { color: var(--hiljainen); font-weight: 700; }
   th:first-child, td:first-child { text-align: left; }
-  .tulos { padding: 10px 12px; border-radius: 10px; background: #f1f5f8; margin-top: 8px; }
+  .tulos { padding: 10px 12px; border-radius: 10px; background: var(--toissijainen); margin-top: 8px; }
   .tulos.yli { background: var(--keltainen-t); }
   svg { width: 100%; height: auto; display: block; }
+  svg .ruudukko { stroke: var(--ruudukko); }
+  svg .akseli { fill: var(--akseli); }
+  svg .nytviiva { stroke: var(--nyt); }
   .selite { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--hiljainen); margin-top: 4px; }
   .selite span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 5px;
     vertical-align: middle; background: var(--c); }
-  details summary { cursor: pointer; color: var(--pää); font-weight: 600; min-height: 32px; }
+  details summary { cursor: pointer; color: var(--jaa); font-weight: 700; min-height: 32px; }
   .nuoli { display: inline-block; }
   /* kartta */
-  #karttakehys { position: relative; height: 62vh; min-height: 320px; border-radius: 12px; overflow: hidden;
-    margin: 0 0 10px; border: 1px solid var(--raja); background: #aad3df; }
+  #karttakehys { position: relative; height: 52vh; min-height: 300px; border-radius: 14px; overflow: hidden;
+    margin: 0 0 10px; border: 1px solid var(--kortti-reuna); background: #aad3df; box-shadow: var(--hehku); }
   #kartta { width: 100%; height: 100%; display: block; }
   .karttanapit { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 8px; }
-  .karttanapit button { width: 52px; height: 52px; border-radius: 10px; border: 1px solid #9fb2bf; background: rgba(255,255,255,.95);
-    font: 700 26px/1 system-ui, sans-serif; color: var(--pää); }
-  .karttanapit button.paalla { background: var(--pää); color: #fff; }
+  .karttanapit button { width: 52px; height: 52px; border-radius: 12px; border: 1px solid #2c78c8; background: rgba(9, 36, 88, .92);
+    font: 800 26px/1 system-ui, sans-serif; color: #ffc928; }
+  .karttanapit button.paalla { background: linear-gradient(180deg, #ffe082, #ffb300); color: #0a1f4d; }
   .karttatila { position: absolute; left: 8px; top: 8px; right: 70px; font-size: 13px; pointer-events: none; }
-  .karttatila span { display: inline-block; background: rgba(255,255,255,.9); border-radius: 8px; padding: 2px 8px; margin: 0 4px 4px 0; }
-  .attr { position: absolute; right: 4px; bottom: 2px; font-size: 10px; background: rgba(255,255,255,.75); padding: 1px 5px; border-radius: 4px; }
-  .karttapaneeli { position: absolute; left: 0; right: 0; bottom: 0; max-height: 75%; overflow: auto; background: #fff;
-    border-top: 1px solid var(--raja); padding: 12px 14px; box-shadow: 0 -4px 14px rgba(0,0,0,.15); }
+  .karttatila span { display: inline-block; background: rgba(9, 36, 88, .9); color: #eef7ff; border-radius: 8px; padding: 2px 8px; margin: 0 4px 4px 0; }
+  .attr { position: absolute; right: 4px; bottom: 2px; font-size: 10px; background: rgba(255, 255, 255, .8); color: #222; padding: 1px 5px; border-radius: 4px; }
+  .karttapaneeli { position: absolute; left: 0; right: 0; bottom: 0; max-height: 78%; overflow: auto; background: var(--tausta);
+    color: var(--teksti); border-top: 2px solid #ffc928; padding: 12px 14px; box-shadow: 0 -4px 14px rgba(0, 0, 0, .35); }
   .merkit { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0; }
-  .merkit button { border: 2px solid transparent; border-radius: 10px; background: #f1f5f8; padding: 6px 2px; min-height: 64px;
+  .merkit button { border: 2px solid transparent; border-radius: 10px; background: var(--toissijainen); padding: 6px 2px; min-height: 64px;
     display: flex; flex-direction: column; align-items: center; gap: 3px; font: inherit; color: var(--teksti); }
-  .merkit button.valittu { border-color: var(--pää); background: #e3eef5; }
+  .merkit button.valittu { border-color: #ffc928; box-shadow: 0 0 8px rgba(255, 201, 40, .5); }
   .merkit small { font-size: 11px; line-height: 1.1; }
-  .pallo { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-weight: 700; align-items: center; justify-content: center; }
+  .pallo { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-weight: 800; align-items: center;
+    justify-content: center; border: 2px solid #ffc928; }
   .emoji { font-size: 24px; line-height: 28px; }
-  button.nappi.vaara { background: var(--punainen); }
   .kytkin { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--teksti); min-height: 44px; }
+  /* reikä ja Kala kiinni */
+  .lajinapit { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0; }
+  .lajinapit button { min-height: 78px; border-radius: 12px; border: 2px solid #ffc928; color: #fff; font: inherit; font-weight: 800;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-shadow: 0 2px 0 rgba(0, 0, 0, .4); }
+  .lajinapit button:active { transform: translateY(1px); filter: brightness(1.2); }
+  .lajinapit .kirjain { font-size: 24px; line-height: 1; }
+  .lajinapit small { font-size: 11px; font-weight: 700; }
+  .lajinapit .maara { font-size: 13px; color: #ffe082; }
+  .valitsin { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+  .valitsin button { flex: 1 1 0; min-height: 46px; border-radius: 10px; border: 1px solid var(--kortti-reuna); background: var(--toissijainen);
+    color: var(--teksti); font: inherit; font-weight: 700; font-size: 15px; padding: 4px 6px; }
+  .valitsin button.valittu { background: linear-gradient(180deg, #ffe082, #ffb300); color: #0a1f4d; border-color: #8a5a00; }
+  .syvyysvalinta { display: flex; align-items: center; gap: 8px; }
+  .syvyysvalinta button { flex: 0 0 64px; min-height: 60px; font-size: 22px; }
+  .syvyysvalinta input { font-size: 30px; font-weight: 800; text-align: center; min-height: 60px; }
+  .reikarivi { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .tutka { color: var(--tutka); font-weight: 800; }
+  .ilmoitus { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #ffc928; color: #0a1f4d;
+    font-weight: 800; padding: 10px 18px; border-radius: 24px; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); z-index: 20; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Pilkkitutka</h1>
-  <span class="tila" id="otsikkotila">ladataan…</span>
+  <img src="icon-192.png" alt="">
+  <div style="flex:1 1 auto;min-width:0"><h1>Pilkkitutka</h1><div class="tila" id="otsikkotila">ladataan…</div></div>
+  <button class="teema" id="teema" aria-label="Aurinkotila: vaalea näkymä kirkkaaseen valoon">☀</button>
 </header>
 <nav>
   <button data-ruutu="jaaturva" class="valittu">Jääturva</button>
@@ -110,6 +162,7 @@
     <div class="kortti pieni" id="k-lahteet"></div>
   </section>
   <section id="ruutu-kartta" hidden>
+    <div class="kortti" id="k-reika"></div>
     <div id="karttakehys">
       <canvas id="kartta" aria-label="Kartta"></canvas>
       <div class="karttanapit">
@@ -146,6 +199,7 @@
     </div>
   </section>
   <section id="ruutu-raportit" hidden>
+    <div class="kortti" id="k-reiat"></div>
     <div class="kortti" id="k-mittaukset"></div>
   </section>
 </main>
@@ -153,10 +207,10 @@
 <script src="kartta.js"></script>
 <script>
 'use strict';
-/* Pilkkitutka v002 (23.11.2026) – jääturva.
+/* Pilkkitutka v003 (23.11.2026) – jääturva.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v002';
+const VERSIO = 'v003';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -186,9 +240,10 @@ const VARAPISTEET = [                  // jos dataa ei ole, paikat silti valitta
   { nimi: 'Raippaluoto', lat: 63.23, lon: 21.40 },
   { nimi: 'Mikkelinsaaret', lat: 63.46, lon: 21.775 },
 ];
-const VARI = { vesi: '#1f6fb2', ennuste: '#7a4fb5', leiri: '#b3261e', il: '#c28a00' }; // SVG-värit
+const VARI = { vesi: 'var(--vari-vesi)', ennuste: 'var(--vari-ennuste)', leiri: 'var(--vari-leiri)', il: 'var(--vari-il)' }; // teemaväreinä style-attribuutissa
 const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 },
-  jalkiPaalla: false, nayttoPaalla: false, pysahdys: { min: 5, sade: 20 }, kartta: null };
+  jalkiPaalla: false, nayttoPaalla: false, pysahdys: { min: 5, sade: 20 }, kartta: null,
+  pilkki: 'tasapaino', aurinko: false };
 
 // --- tila
 const $ = id => document.getElementById(id);
@@ -484,26 +539,26 @@ function viivakaavio(o) {
   const askeleet = [1, 2, 5, 10, 20, 50, 100, 200];
   const askel = askeleet.find(a => (y1 - y0) / a <= 7) || 500;
   for (let v = Math.ceil(y0 / askel) * askel; v <= y1; v += askel) {
-    s += `<line x1="${vas}" x2="${W - oik}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e3e9ee"/>`;
-    s += `<text x="${vas - 4}" y="${Y(v) + 4}" font-size="11" text-anchor="end" fill="#5a6b77">${fi(v * (o.kerroin || 1), o.desim || 0)}</text>`;
+    s += `<line class="ruudukko" x1="${vas}" x2="${W - oik}" y1="${Y(v)}" y2="${Y(v)}"/>`;
+    s += `<text class="akseli" x="${vas - 4}" y="${Y(v) + 4}" font-size="11" text-anchor="end">${fi(v * (o.kerroin || 1), o.desim || 0)}</text>`;
   }
   const keskiyot = [];
   for (let t = Math.ceil(x0 / 3600e3) * 3600e3; t <= x1; t += 3600e3) if (tuntiFmt.format(new Date(t)) === '0') keskiyot.push(t);
   const joka = Math.max(1, Math.ceil(keskiyot.length / 5)); // enintään ~5 päivämerkintää
   keskiyot.forEach((t, i) => {
-    s += `<line x1="${X(t)}" x2="${X(t)}" y1="${yla}" y2="${H - ala}" stroke="#e3e9ee"/>`;
-    if (i % joka === 0) s += `<text x="${X(t) + 3}" y="${H - 8}" font-size="11" fill="#5a6b77">${esc(aikaFi(t, { weekday: 'short', day: 'numeric' }))}</text>`;
+    s += `<line class="ruudukko" x1="${X(t)}" x2="${X(t)}" y1="${yla}" y2="${H - ala}"/>`;
+    if (i % joka === 0) s += `<text class="akseli" x="${X(t) + 3}" y="${H - 8}" font-size="11">${esc(aikaFi(t, { weekday: 'short', day: 'numeric' }))}</text>`;
   });
   if (o.nyt && o.nyt >= x0 && o.nyt <= x1)
-    s += `<line x1="${X(o.nyt)}" x2="${X(o.nyt)}" y1="${yla}" y2="${H - ala}" stroke="#0d3b52" stroke-dasharray="2 3"/>`;
+    s += `<line class="nytviiva" x1="${X(o.nyt)}" x2="${X(o.nyt)}" y1="${yla}" y2="${H - ala}" stroke-dasharray="2 3"/>`;
   for (const v of o.viivat || []) {
-    s += `<line x1="${vas}" x2="${W - oik}" y1="${Y(v.y)}" y2="${Y(v.y)}" stroke="${v.vari}" stroke-width="1.5" ${v.katko ? 'stroke-dasharray="6 4"' : ''}/>`;
-    s += `<text x="${W - oik - 2}" y="${Y(v.y) - 3}" font-size="11" text-anchor="end" fill="${v.vari}">${esc(v.teksti)}</text>`;
+    s += `<line x1="${vas}" x2="${W - oik}" y1="${Y(v.y)}" y2="${Y(v.y)}" style="stroke:${v.vari}" stroke-width="1.5" ${v.katko ? 'stroke-dasharray="6 4"' : ''}/>`;
+    s += `<text x="${W - oik - 2}" y="${Y(v.y) - 3}" font-size="11" text-anchor="end" style="fill:${v.vari}">${esc(v.teksti)}</text>`;
   }
   for (const sr of o.sarjat) {
     if (!sr.p.length) continue;
     const d = sr.p.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ');
-    s += `<path d="${d}" fill="none" stroke="${sr.vari}" stroke-width="${sr.leveys || 2.2}" ${sr.katko ? 'stroke-dasharray="5 3"' : ''}/>`;
+    s += `<path d="${d}" fill="none" style="stroke:${sr.vari}" stroke-width="${sr.leveys || 2.2}" ${sr.katko ? 'stroke-dasharray="5 3"' : ''}/>`;
   }
   return s + '</svg>';
 }
@@ -619,7 +674,7 @@ function korttiVedenkorkeus(c) {
   h += viivakaavio({ nimi: 'vedenkorkeus', nyt: c.nyt, kerroin: 0.01, desim: 1,
     sarjat: [{ p: (c.hav || []).filter(x => x[0] >= c.nyt - 48 * 3600e3), vari: VARI.vesi },
              { p: c.enn || [], vari: VARI.ennuste, katko: true }], viivat });
-  h += `<div class="selite"><span style="--c:var(--vesi)">mitattu</span><span style="--c:var(--ennuste)">ennuste</span><span style="--c:var(--leiri)">leiri</span>${c.ilKeltainenN2000 != null ? '<span style="--c:var(--il)">IL keltainen raja</span>' : ''}</div>`;
+  h += `<div class="selite"><span style="--c:var(--vari-vesi)">mitattu</span><span style="--c:var(--vari-ennuste)">ennuste</span><span style="--c:var(--vari-leiri)">leiri</span>${c.ilKeltainenN2000 != null ? '<span style="--c:var(--vari-il)">IL keltainen raja</span>' : ''}</div>`;
   if (c.ilKeltainenN2000 != null) h += `<p class="pieni hiljainen">IL:n keltainen raja ${tasoMerkki('laskettu')}: ${IL_KELTAINEN_TEOR_CM[c.mareo.nimi]} cm teoreettisesta keskivedestä [T] + mareografin mittausten ero N2000:een ${fiEtumerkki(c.n2000MiinusTeor, 1)} cm.</p>`;
   $('k-vedenkorkeus').innerHTML = h;
 }
@@ -784,9 +839,9 @@ function korttiMittaukset() {
   } else h += '<p class="hiljainen">Ei mittauksia.</p>';
   h += `<div class="rivi" style="margin-top:10px">
       <button class="nappi toissijainen" id="vie">Vie tiedostoksi</button>
-      <label class="nappi toissijainen" style="text-align:center;display:flex;align-items:center;justify-content:center;color:var(--pää);font-size:17px">Tuo tiedostosta<input type="file" id="tuo" accept="application/json,.json" hidden></label>
+      <label class="nappi toissijainen" style="text-align:center;display:flex;align-items:center;justify-content:center;color:var(--jaa);font-size:17px">Tuo tiedostosta<input type="file" id="tuo" accept="application/json,.json" hidden></label>
     </div>
-    <p class="pieni hiljainen">Mittaukset, pisteet ja jälki ovat vain tässä puhelimessa. Varmuuskopio (kaikki kolme) tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
+    <p class="pieni hiljainen">Mittaukset, reiät, pisteet ja jälki ovat vain tässä puhelimessa. Varmuuskopio (kaikki) tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
   $('k-mittaukset').innerHTML = h;
   document.querySelectorAll('[data-poista]').forEach(b => b.onclick = () => {
     if (!confirm('Poistetaanko mittaus?')) return;
@@ -795,7 +850,7 @@ function korttiMittaukset() {
   });
   $('vie').onclick = () => {
     tallennaJalki(true);
-    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET, pisteet: PISTEET, jalki: JALKI })], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET, pisteet: PISTEET, jalki: JALKI, reiat: REIAT })], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `pilkkitutka_varmuuskopio_${paivaAvain(Date.now())}.json`;
     document.body.appendChild(a); a.click(); a.remove();
@@ -814,11 +869,207 @@ function korttiMittaukset() {
       const jt = new Set(JALKI.map(x => x[0])); let nj = 0;
       for (const x of (d.jalki || [])) if (Array.isArray(x) && x.length >= 3 && !jt.has(x[0])) { JALKI.push(x); nj++; }
       if (nj) { JALKI.sort((a, b) => a[0] - b[0]); JALKI = PK.jalkiLisaa(JALKI, null, Date.now()).jalki; jalkiMuuttui = true; tallennaJalki(true); paivitaPysahdykset(); }
-      alert(`Tuotu ${n} mittausta, ${np} pistettä ja ${nj} jäljen pistettä.`); piirra(); paivitaJalkiTila();
+      const rIdt = new Set(REIAT.map(r => r.id)); let nr = 0;
+      for (const r of (d.reiat || [])) if (r && isFinite(r.lat) && isFinite(r.lon) && !rIdt.has(r.id)) { r.saaliit = r.saaliit || []; REIAT.push(r); nr++; }
+      if (nr) tallennaReiat();
+      alert(`Tuotu ${n} mittausta, ${np} pistettä, ${nr} reikää ja ${nj} jäljen pistettä.`); piirra(); paivitaJalkiTila();
     } catch (err) { alert('Tiedostoa ei voitu lukea: ' + err.message); }
   };
 }
 
+
+
+// --- reikäloki ja Kala kiinni (vaihe 3; vain tässä puhelimessa)
+const PILKIT = {                        // Hannu 23.11.2026: "tee ja pommi, tasapaino (oletus)"
+  tasapaino: 'Tasapainopilkki', pommi: 'Pommi', pysty: 'Pystypilkki', morri: 'Morri',
+  siika: 'Siikapilkki + toukka', kalanpala: 'Kalanpala', muu: 'Muu',
+};
+const OTTI = { pohja: 'Pohja', yla: 'Pohjan yllä', vali: 'Välivesi' };
+let REIAT = lueLS('pilkki_reiat', []) || [];
+const RT = { maara: 1, otti: 'pohja', ottiM: null, dialogi: null, suodatin: 'tanaan' };
+function tallennaReiat() {
+  if (!kirjoitaLS('pilkki_reiat', REIAT)) alert('Reikälokin tallennus puhelimeen epäonnistui (tila täynnä?).');
+  if (KARTTA) { KARTTA.reiat = REIAT; paivitaPysahdykset(); }
+}
+function tuoreGps() { return GPS && Date.now() - GPS.t < 60000 ? GPS : null; }
+function aktiivinenReika() { return PK.aktiivinenReika(REIAT, tuoreGps(), Date.now()); }
+function ilmoitus(teksti) {
+  let el = document.getElementById('ilmoitus');
+  if (!el) { el = document.createElement('div'); el.id = 'ilmoitus'; el.className = 'ilmoitus'; document.body.appendChild(el); }
+  el.textContent = teksti; el.hidden = false;
+  clearTimeout(ilmoitus.ajastin); ilmoitus.ajastin = setTimeout(() => { el.hidden = true; }, 1800);
+}
+function lajiNappi(laji, lisa) {
+  const M = PK.MERKIT[laji] || PK.MERKIT.muu;
+  return `<button data-laji="${laji}" style="background:${M.vari}"><span class="kirjain">${esc(M.kirjain || '•')}</span><small>${esc(M.nimi)}</small>${lisa ? `<span class="maara">${esc(lisa)}</span>` : ''}</button>`;
+}
+function lahinMittaus(lat, lon) {
+  return MITTAUKSET.filter(m => m.lat != null && Date.now() - m.t < 6 * 3600e3 && km(lat, lon, m.lat, m.lon) < 0.2)
+    .sort((a, b) => b.t - a.t)[0] || null;
+}
+function korttiReika() {
+  const el = $('k-reika'); if (!el) return;
+  if (RT.dialogi) return;   // dialogi auki: ei piirretä päälle
+  const r = aktiivinenReika();
+  if (KARTTA) KARTTA.aktiivinenId = r ? r.id : null;
+  if (!r) {
+    const tanaan = REIAT.filter(x => paivaAvain(x.t) === paivaAvain(Date.now()));
+    const yv = PK.saalisYhteenveto(tanaan.flatMap(x => x.saaliit || []));
+    el.innerHTML = `<h2>Reikä</h2>
+      <button class="nappi" id="r-uusi" style="min-height:64px;font-size:20px">AVAA REIKÄ</button>
+      <p class="pieni hiljainen">Syvyys kysytään kerran, sen jälkeen Kala kiinni on yksi napautus. Reikä pysyy auki 3 h viimeisestä kalasta, kun olet alle 25 m päässä.</p>
+      ${tanaan.length ? `<p class="pieni">Tänään ${tanaan.length} reikää${PK.yhteenvetoTeksti(yv) ? ' · ' + esc(PK.yhteenvetoTeksti(yv)) : ''}</p>` : ''}`;
+    $('r-uusi').onclick = () => avaaReikaDialogi({});
+    return;
+  }
+  const yv = PK.saalisYhteenveto(r.saaliit), etaisyys = tuoreGps() ? PK.etaisyysM(GPS.lat, GPS.lon, r.lat, r.lon) : null;
+  const minuutit = Math.round((Date.now() - r.t) / 60000);
+  el.innerHTML = `<div class="reikarivi"><h2 style="margin:0">Reikä <span class="tutka" style="text-transform:none">${esc(PK.syvTeksti(r.syvyys_m))} m</span></h2>
+      <span class="pieni hiljainen">${esc(PILKIT[r.pilkki] || r.pilkki || '')} · ${minuutit < 120 ? minuutit + ' min' : Math.round(minuutit / 60) + ' h'}${etaisyys != null ? ' · ' + fi(etaisyys) + ' m' : ''}</span></div>
+    <div class="lajinapit">${PK.LAJIT.map(l => lajiNappi(l, yv[l] ? PK.lajiTeksti(yv[l]) : '')).join('')}</div>
+    <div class="valitsin" id="r-maara">${[[1, '1 kala'], ['muutama', 'Muutama'], ['monta', 'Monta']].map(([k, t]) =>
+      `<button data-maara="${k}" class="${RT.maara === k ? 'valittu' : ''}">${t}</button>`).join('')}</div>
+    <div class="valitsin" id="r-otti">${Object.entries(OTTI).map(([k, t]) => `<button data-otti="${k}" class="${RT.otti === k ? 'valittu' : ''}">${t}</button>`).join('')}</div>
+    ${RT.otti === 'yla' ? `<div class="rivi"><div><label for="r-otti-m">Metriä pohjasta (valinnainen)</label><input id="r-otti-m" type="number" inputmode="decimal" step="0.5" min="0" value="${RT.ottiM == null ? '' : RT.ottiM}"></div></div>` : ''}
+    <div class="rivi" style="margin-top:6px"><button class="nappi toissijainen" id="r-peru">Peru viimeisin</button>
+      <button class="nappi toissijainen" id="r-muokkaa">Syvyys / pilkki</button><button class="nappi" id="r-uusi">Uusi reikä</button></div>
+    ${r.saaliit.length ? `<p class="pieni">Tällä reiällä: ${esc(PK.yhteenvetoTeksti(yv))}</p>` : ''}`;
+  el.querySelectorAll('[data-laji]').forEach(b => b.onclick = () => kalaKiinni(r, b.dataset.laji));
+  el.querySelectorAll('[data-maara]').forEach(b => b.onclick = () => { RT.maara = isNaN(+b.dataset.maara) ? b.dataset.maara : +b.dataset.maara; korttiReika(); });
+  el.querySelectorAll('[data-otti]').forEach(b => b.onclick = () => { RT.otti = b.dataset.otti; korttiReika(); });
+  if ($('r-otti-m')) $('r-otti-m').onchange = e => { const v = parseFloat(String(e.target.value).replace(',', '.')); RT.ottiM = isFinite(v) ? v : null; };
+  $('r-peru').onclick = () => peruViimeisin(r);
+  $('r-muokkaa').onclick = () => avaaReikaDialogi({ muokattava: r });
+  $('r-uusi').onclick = () => avaaReikaDialogi({});
+}
+function kalaKiinni(r, laji) {
+  const maara = RT.maara;
+  r.saaliit = r.saaliit || [];
+  const s = { t: Date.now(), laji, maara, otti: RT.otti, pilkki: r.pilkki };
+  if (RT.otti === 'yla' && RT.ottiM != null) s.otti_m = RT.ottiM;
+  r.saaliit.push(s);
+  RT.maara = 1;
+  tallennaReiat();
+  if (navigator.vibrate) navigator.vibrate(40);
+  ilmoitus(`${(PK.MERKIT[laji] || PK.MERKIT.muu).nimi} ${maara === 1 ? '+1' : maara}`);
+  korttiReika(); if (KARTTA) KARTTA.piirra();
+}
+function peruViimeisin(r) {
+  if (r.saaliit && r.saaliit.length) {
+    const s = r.saaliit.pop(); tallennaReiat();
+    ilmoitus(`Peruttu: ${(PK.MERKIT[s.laji] || PK.MERKIT.muu).nimi} ${s.maara === 1 ? '+1' : s.maara}`);
+  } else if (confirm('Reiässä ei ole kaloja. Poistetaanko reikä?')) {
+    REIAT = REIAT.filter(x => x !== r); tallennaReiat(); ilmoitus('Reikä poistettu');
+  }
+  korttiReika(); if (KARTTA) KARTTA.piirra();
+}
+/** Dialogi uudelle reiälle tai muokkaukseen. pohja: { muokattava } | { lat, lon, t, lahde } | {} */
+function avaaReikaDialogi(pohja) {
+  const el = $('k-reika'), m = pohja.muokattava || null;
+  const edellinen = REIAT.slice().sort((a, b) => b.t - a.t)[0];
+  let syv = m ? m.syvyys_m : (edellinen ? edellinen.syvyys_m : null);
+  let pilkki = m ? m.pilkki : (ASET.pilkki || 'tasapaino');
+  RT.dialogi = true;
+  const mitt = !m && pohja.lat != null ? lahinMittaus(pohja.lat, pohja.lon) : (!m && tuoreGps() ? lahinMittaus(GPS.lat, GPS.lon) : null);
+  const jaa = m ? m.jaa_cm : (mitt ? mitt.jaa_cm : null), lumi = m ? m.lumi_cm : (mitt ? mitt.lumi_cm : null);
+  const paikkaTeksti = m ? `Avattu ${pvmKlo(m.t)}` : pohja.lahde === 'pysahdys' ? `Pysähdyksestä ${pvmKlo(pohja.t)}`
+    : pohja.lat != null ? 'Kartalta valittu kohta' : 'Sijainti: GPS';
+  el.innerHTML = `<h2>${m ? 'Reiän tiedot' : 'Uusi reikä'}</h2><p class="pieni hiljainen" style="margin-top:0">${esc(paikkaTeksti)}</p>
+    <label for="r-syv">Syvyys (m) – pakollinen</label>
+    <div class="syvyysvalinta"><button class="nappi toissijainen" data-d="-0.5" aria-label="Matalampi">−</button>
+      <input id="r-syv" type="number" inputmode="decimal" step="0.1" min="0.3" max="80" value="${syv == null ? '' : syv}">
+      <button class="nappi toissijainen" data-d="0.5" aria-label="Syvempi">+</button></div>
+    <label style="margin-top:8px">Pilkki / syötti</label>
+    <div class="valitsin" id="r-pilkit">${Object.entries(PILKIT).map(([k, t]) => `<button data-pilkki="${k}" class="${k === pilkki ? 'valittu' : ''}">${esc(t)}</button>`).join('')}</div>
+    <details ${jaa != null ? 'open' : ''}><summary>Jää ja lumi (valinnainen)</summary>
+      <div class="rivi"><div><label for="r-jaa">Jää (cm)</label><input id="r-jaa" type="number" inputmode="numeric" min="0" value="${jaa == null ? '' : jaa}"></div>
+      <div><label for="r-lumi">Lumi (cm)</label><input id="r-lumi" type="number" inputmode="numeric" min="0" value="${lumi == null ? '' : lumi}"></div></div>
+      ${mitt ? `<p class="pieni hiljainen">Esitäytetty Jääturvan mittauksesta ${pvmKlo(mitt.t)}.</p>` : ''}</details>
+    <div class="rivi" style="margin-top:8px"><button class="nappi" id="r-tallenna">${m ? 'Tallenna' : 'Avaa reikä'}</button>
+      <button class="nappi toissijainen" id="r-peruuta">Peruuta</button>${m ? '<button class="nappi vaara" id="r-poista">Poista reikä</button>' : ''}</div>
+    <p class="pieni" id="r-viesti"></p>`;
+  const syvEl = $('r-syv');
+  el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => {
+    const v = parseFloat(String(syvEl.value).replace(',', '.'));
+    syvEl.value = Math.max(0.5, Math.round(((isFinite(v) ? v : 5) + parseFloat(b.dataset.d)) * 10) / 10);
+  });
+  el.querySelectorAll('[data-pilkki]').forEach(b => b.onclick = () => {
+    pilkki = b.dataset.pilkki; el.querySelectorAll('[data-pilkki]').forEach(x => x.classList.toggle('valittu', x === b));
+  });
+  const sulje = () => { RT.dialogi = null; korttiReika(); if (KARTTA) KARTTA.piirra(); };
+  $('r-peruuta').onclick = sulje;
+  if (m) $('r-poista').onclick = () => {
+    if (!confirm(`Poistetaanko reikä${m.saaliit && m.saaliit.length ? ' ja sen ' + m.saaliit.length + ' saaliskirjausta' : ''}?`)) return;
+    REIAT = REIAT.filter(x => x !== m); tallennaReiat(); sulje(); korttiReiat();
+  };
+  $('r-tallenna').onclick = () => {
+    const d = parseFloat(String(syvEl.value).replace(',', '.'));
+    if (!isFinite(d) || d <= 0 || d > 80) { $('r-viesti').textContent = 'Syötä syvyys metreinä.'; syvEl.focus(); return; }
+    const j = parseFloat($('r-jaa').value), l = parseFloat($('r-lumi').value);
+    const tiedot = { syvyys_m: Math.round(d * 10) / 10, pilkki, jaa_cm: isFinite(j) ? j : null, lumi_cm: isFinite(l) ? l : null };
+    ASET.pilkki = pilkki; kirjoitaLS('pilkki_asetukset', ASET);
+    if (m) { Object.assign(m, tiedot); tallennaReiat(); sulje(); korttiReiat(); return; }
+    const luo = (lat, lon, tark, gps) => {
+      REIAT.push(Object.assign({ id: Date.now(), t: pohja.t || Date.now(), lat: +lat.toFixed(6), lon: +lon.toFixed(6),
+        tarkkuus_m: tark == null ? null : Math.round(tark), gps, saaliit: [] }, tiedot));
+      RT.otti = 'pohja'; RT.ottiM = null; RT.maara = 1;
+      tallennaReiat(); sulje(); ilmoitus(`Reikä auki: ${PK.syvTeksti(tiedot.syvyys_m)} m`); korttiReiat();
+    };
+    if (pohja.lat != null) return luo(pohja.lat, pohja.lon, null, false);
+    const g = tuoreGps();
+    if (g && g.tarkkuus <= 50) return luo(g.lat, g.lon, g.tarkkuus, true);
+    $('r-viesti').textContent = 'Haetaan GPS…'; $('r-tallenna').disabled = true;
+    const varalla = () => {
+      if (KARTTA) { $('r-viesti').textContent = 'GPS ei vastannut – reikä kartan keskikohtaan.'; luo(KARTTA.lat, KARTTA.lon, null, false); }
+      else { $('r-viesti').textContent = 'GPS ei vastannut. Yritä uudelleen.'; $('r-tallenna').disabled = false; }
+    };
+    if (!('geolocation' in navigator)) return varalla();
+    navigator.geolocation.getCurrentPosition(pos => luo(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, true),
+      varalla, { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 });
+  };
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function korttiReiat() {
+  const el = $('k-reiat'); if (!el) return;
+  const nyt = Date.now(), kausiAlku = Date.parse(`${new Date(nyt).getMonth() >= 6 ? new Date(nyt).getFullYear() : new Date(nyt).getFullYear() - 1}-11-01T00:00:00`);
+  const suodattimet = { tanaan: ['Tänään', r => paivaAvain(r.t) === paivaAvain(nyt)], vrk10: ['10 vrk', r => nyt - r.t < 10 * 864e5],
+    kausi: ['Kausi', r => r.t >= kausiAlku], kaikki: ['Kaikki', () => true] };
+  const [, ehto] = suodattimet[RT.suodatin] || suodattimet.tanaan;
+  const valitut = REIAT.filter(ehto).sort((a, b) => b.t - a.t);
+  const yv = PK.saalisYhteenveto(valitut.flatMap(r => r.saaliit || []));
+  const syv = PK.lajienSyvyydet(valitut);
+  let h = `<h2>Reiät ja saalis</h2><div class="valitsin">${Object.entries(suodattimet).map(([k, [t]]) =>
+    `<button data-suodatin="${k}" class="${RT.suodatin === k ? 'valittu' : ''}">${t}</button>`).join('')}</div>`;
+  if (!valitut.length) h += '<p class="hiljainen">Ei reikiä tällä rajauksella.</p>';
+  else {
+    const saaliilla = valitut.filter(r => (r.saaliit || []).length).length;
+    h += `<p><b>${valitut.length}</b> reikää, joista saalista <b>${saaliilla}</b>${PK.yhteenvetoTeksti(yv) ? '<br>' + esc(PK.yhteenvetoTeksti(yv)) : ''}</p>`;
+    const rivit = PK.LAJIT.filter(l => syv[l]).map(l => `${esc(PK.MERKIT[l].nimi)} ${PK.syvTeksti(syv[l].min)}${syv[l].max > syv[l].min ? '–' + PK.syvTeksti(syv[l].max) : ''} m (${syv[l].reikia} reikää)`);
+    if (rivit.length) h += `<p class="pieni">Syvyydet, joista saatu ${tasoMerkki('laskettu')}: ${rivit.join(' · ')}</p>`;
+    h += '<table><tr><th>Aika</th><th>Syv.</th><th>Pilkki</th><th>Saalis</th></tr>' + valitut.map(r => `<tr>
+      <td>${pvmKlo(r.t)}</td><td>${PK.syvTeksti(r.syvyys_m)}</td><td>${esc(PILKIT[r.pilkki] || '')}</td>
+      <td>${esc(PK.yhteenvetoTeksti(PK.saalisYhteenveto(r.saaliit)) || '–')}</td></tr>`).join('') + '</table>';
+    h += '<p class="pieni hiljainen">Reikää voi muokata tai sen poistaa napauttamalla reikää kartalla.</p>';
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('[data-suodatin]').forEach(b => b.onclick = () => { RT.suodatin = b.dataset.suodatin; korttiReiat(); });
+}
+function naytaReika(r) {
+  const el = $('karttapaneeli'), yv = PK.saalisYhteenveto(r.saaliit);
+  el.innerHTML = `<b>Reikä ${esc(PK.syvTeksti(r.syvyys_m))} m</b> <span class="pieni hiljainen">${esc(PILKIT[r.pilkki] || '')} · ${pvmKlo(r.t)}${r.gps === false ? ' · ei GPS' : ''}</span>
+    <p class="pieni" style="margin:4px 0">${esc(PK.yhteenvetoTeksti(yv) || 'Ei saalista')}${r.jaa_cm != null ? ` · jää ${fi(r.jaa_cm)} cm` : ''}${r.lumi_cm != null ? ` · lumi ${fi(r.lumi_cm)} cm` : ''}</p>
+    <div class="pieni hiljainen">Lisää saalis tälle reiälle (määrä ${RT.maara === 1 ? '1' : RT.maara}):</div>
+    <div class="lajinapit">${PK.LAJIT.map(l => lajiNappi(l, yv[l] ? PK.lajiTeksti(yv[l]) : '')).join('')}</div>
+    <div class="rivi"><button class="nappi toissijainen" id="kr-muokkaa">Muokkaa</button><button class="nappi toissijainen" id="kr-sulje">Sulje</button></div>`;
+  el.hidden = false;
+  el.querySelectorAll('[data-laji]').forEach(b => b.onclick = () => { kalaKiinni(r, b.dataset.laji); naytaReika(r); });
+  $('kr-muokkaa').onclick = () => { suljePaneeli(); avaaReikaDialogi({ muokattava: r }); };
+  $('kr-sulje').onclick = suljePaneeli;
+}
+function asetaTeema() {
+  document.body.classList.toggle('aurinko', !!ASET.aurinko);
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = ASET.aurinko ? '#0d3a7a' : '#0a2150';
+}
 
 // --- kartta: jälki, pysähdykset, omat pisteet (vain tässä puhelimessa)
 const PK = window.PilkkiKartta;
@@ -838,7 +1089,9 @@ function tallennaPisteet() {
   if (KARTTA) { KARTTA.pisteet = PISTEET; KARTTA.piirra(); }
 }
 function laskePysahdykset() {
-  return PK.pysahdykset(JALKI, { sadeM: ASET.pysahdys.sade, minKestoS: ASET.pysahdys.min * 60 }).filter(p => !PIILOTETUT.has(p.t0));
+  const reiat = typeof REIAT !== 'undefined' ? REIAT : [];
+  return PK.pysahdykset(JALKI, { sadeM: ASET.pysahdys.sade, minKestoS: ASET.pysahdys.min * 60 }).filter(p => !PIILOTETUT.has(p.t0)
+    && !reiat.some(r => PK.etaisyysM(r.lat, r.lon, p.lat, p.lon) < 25 && r.t >= p.t0 * 1000 - 1800e3 && r.t <= p.t1 * 1000 + 1800e3));
 }
 function paivitaPysahdykset() { if (KARTTA) { KARTTA.pysahdykset = laskePysahdykset(); KARTTA.jalki = JALKI; KARTTA.piirra(); } }
 
@@ -852,6 +1105,8 @@ function uusiSijainti(pos) {
   }
   if (KARTTA) { KARTTA.gps = GPS; if (KARTTA.seuraa) KARTTA.keskita(GPS.lat, GPS.lon); else KARTTA.piirra(); }
   paivitaJalkiTila();
+  const ak = aktiivinenReika();
+  if ((ak ? ak.id : null) !== (KARTTA ? KARTTA.aktiivinenId : uusiSijainti.edAk)) { uusiSijainti.edAk = ak ? ak.id : null; korttiReika(); }
 }
 function gpsSeuranta() {
   const tarvitaan = ASET.jalkiPaalla || NAKYVA === 'kartta';
@@ -955,6 +1210,7 @@ function avaaPisteDialogi(p) {
 function naytaKohde(os) {
   const el = $('karttapaneeli');
   if (!os) { suljePaneeli(); return; }
+  if (os.laji === 'reika') { naytaReika(os.kohde); return; }
   if (os.laji === 'piste') {
     const p = os.kohde, M = PK.MERKIT[p.merkki] || PK.MERKIT.muu;
     const etGps = GPS ? ` · ${fi(PK.etaisyysM(GPS.lat, GPS.lon, p.lat, p.lon))} m sinusta` : '';
@@ -969,10 +1225,11 @@ function naytaKohde(os) {
     el.innerHTML = `<b>Pilkkipaikka</b> <span class="taso">oletus pysähdyksestä</span><br>
       ${pvmKlo(p.t0 * 1000)}–${aikaFi(p.t1 * 1000, { hour: '2-digit', minute: '2-digit' })} · ${Math.round(p.kestoS / 60)} min
       ${p.katko ? '<br><span class="pieni hiljainen">Näyttö oli välillä pois: kesto on arvio samasta kohdasta ennen ja jälkeen.</span>' : ''}
-      <div class="rivi" style="margin-top:8px"><button class="nappi" id="kohde-piste">Tallenna pisteeksi</button>
+      <div class="rivi" style="margin-top:8px"><button class="nappi" id="kohde-reika">Merkitse reiäksi</button><button class="nappi toissijainen" id="kohde-piste">Tallenna pisteeksi</button>
         <button class="nappi toissijainen" id="kohde-piilota">Ei pilkkipaikka</button><button class="nappi toissijainen" id="kohde-sulje">Sulje</button></div>`;
     el.hidden = false;
     $('kohde-piste').onclick = () => avaaPisteDialogi({ lat: p.lat, lon: p.lon, merkki: 'hyva', nimi: '' });
+    $('kohde-reika').onclick = () => { suljePaneeli(); avaaReikaDialogi({ lat: p.lat, lon: p.lon, t: p.t0 * 1000, lahde: 'pysahdys' }); };
     $('kohde-piilota').onclick = () => { PIILOTETUT.add(p.t0); kirjoitaLS('pilkki_piilotetut', [...PIILOTETUT]); suljePaneeli(); paivitaPysahdykset(); paivitaJalkiTila(); };
     $('kohde-sulje').onclick = suljePaneeli;
   }
@@ -982,7 +1239,7 @@ function avaaKartta() {
   if (!KARTTA) {
     const alku = ASET.kartta || (ASET.leiri.lat != null ? { lat: ASET.leiri.lat, lon: ASET.leiri.lon, z: 14 } : { lat: 62.972, lon: 21.488, z: 12 });
     KARTTA = new PK.Kartta($('kartta'), alku);
-    KARTTA.jalki = JALKI; KARTTA.pisteet = PISTEET; KARTTA.leiri = ASET.leiri; KARTTA.gps = GPS;
+    KARTTA.jalki = JALKI; KARTTA.pisteet = PISTEET; KARTTA.reiat = REIAT; KARTTA.leiri = ASET.leiri; KARTTA.gps = GPS;
     KARTTA.onMuutos = () => { lataaSyvyydet(); paivitaKarttaTila(); tallennaNakyma(); };
     KARTTA.onTap = os => naytaKohde(os);
     KARTTA.onLongPress = (lat, lon) => { KARTTA.valittu = null; avaaPisteDialogi({ lat, lon }); };
@@ -996,7 +1253,8 @@ function avaaKartta() {
     window.addEventListener('resize', () => KARTTA && KARTTA.koko());
     paivitaPysahdykset();
   }
-  KARTTA.leiri = ASET.leiri;
+  KARTTA.leiri = ASET.leiri; KARTTA.reiat = REIAT;
+  korttiReika();
   KARTTA.koko(); lataaSyvyydet(); paivitaJalkiTila();
 }
 function kiinnitaKarttaOhjaimet() {
@@ -1037,6 +1295,7 @@ function piirra() {
     try { k(c); } catch (e) { console.error(k.name, e); }
   }
   try { korttiMittaukset(); } catch (e) { console.error('korttiMittaukset', e); }
+  try { korttiReika(); korttiReiat(); } catch (e) { console.error('reikäkortit', e); }
 }
 
 function vaihdaRuutu(nimi) {
@@ -1049,6 +1308,8 @@ function vaihdaRuutu(nimi) {
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaihdaRuutu(b.dataset.ruutu));
 
+$('teema').onclick = () => { ASET.aurinko = !ASET.aurinko; kirjoitaLS('pilkki_asetukset', ASET); asetaTeema(); };
+asetaTeema();
 (async function kaynnista() {
   asetaPaikka();
   await lataaData();
@@ -1059,7 +1320,7 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaihdaRuu
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
     navigator.serviceWorker.register('sw.js').catch(() => {});
   setInterval(async () => { if (document.visibilityState === 'visible') { await lataaData(); piirra(); lataaSyvyydet(); } }, 30 * 60e3);
-  setInterval(() => { if (KARTTA && NAKYVA === 'kartta') KARTTA.piirra(); }, 60e3);   // jäljen haalistuminen
+  setInterval(() => { if (KARTTA && NAKYVA === 'kartta') { KARTTA.piirra(); korttiReika(); } }, 60e3);   // haalistuminen ja reiän aika
 })();
 </script>
 </body>

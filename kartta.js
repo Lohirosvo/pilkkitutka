@@ -1,4 +1,5 @@
-/* Pilkkitutka – kartta.js v002 (23.11.2026)
+/* Pilkkitutka – kartta.js v003 (23.11.2026)
+ * v003: reikäloki (vaihe 3): reiät kartalla syvyysnumerolla, väri pääkalan mukaan, aktiivinen reikä kultarenkaalla.
  * Kevyt oma karttanäkymä ilman ulkoisia kirjastoja, merilohitutkan kartta.js:n periaatteella:
  *  - OSM-pohjakartta (laatat tile.openstreetmap.org)
  *  - Traficomin syvyyskäyrät (hakuajo, hae_syvyys.py -> data/syvyys/<alue>/syvyys.json)
@@ -138,6 +139,72 @@
     muu: { nimi: 'Muu', kirjain: '•', vari: '#455a64' },
   };
 
+  // ------------------------------------------------------------ reiät ja saalis (vaihe 3)
+  // reikä = { id, t, lat, lon, gps, syvyys_m, pilkki, jaa_cm?, lumi_cm?, saaliit: [{ t, laji, maara, otti, otti_m?, pilkki }] }
+  // maara: kokonaisluku, 'muutama' tai 'monta' (Hannu 23.11.2026: "yksinkertainen muutama monta tai kpl")
+  const REIKA = { aktiivinenM: 25, aktiivinenH: 3 };   // [O] GPS:n heilunta huomioiden
+  const LAJIT = ['ahven', 'siika', 'kuha', 'made', 'muu'];
+  function reikaViimeisin(r) {
+    let t = r.t;
+    for (const s of r.saaliit || []) if (s.t > t) t = s.t;
+    return t;
+  }
+  /** Aktiivinen reikä: tuorein reikä, jonka viimeisestä tapahtumasta on alle aktiivinenH ja joka on
+   *  aktiivinenM:n sisällä sijainnista (jos sijaintia ei ole, pelkkä aika ratkaisee). */
+  function aktiivinenReika(reiat, sij, nytMs, opts) {
+    const o = Object.assign({}, REIKA, opts || {});
+    let paras = null;
+    for (const r of reiat || []) {
+      const v = reikaViimeisin(r);
+      if (nytMs - v > o.aktiivinenH * 3600e3 || v > nytMs + 60e3) continue;
+      if (sij && etaisyysM(sij.lat, sij.lon, r.lat, r.lon) > o.aktiivinenM) continue;
+      if (!paras || v > reikaViimeisin(paras)) paras = r;
+    }
+    return paras;
+  }
+  function saalisYhteenveto(saaliit) {
+    const y = {};
+    for (const s of saaliit || []) {
+      const l = y[s.laji] || (y[s.laji] = { kpl: 0, muutama: 0, monta: 0 });
+      if (s.maara === 'muutama') l.muutama++;
+      else if (s.maara === 'monta') l.monta++;
+      else l.kpl += Math.max(1, parseInt(s.maara, 10) || 1);
+    }
+    return y;
+  }
+  /** Pääkala: painona kpl 1, muutama 3, monta 8 [O]. */
+  function paalaji(y) {
+    let paras = null, pw = 0;
+    for (const [laji, l] of Object.entries(y || {})) {
+      const w = l.kpl + 3 * l.muutama + 8 * l.monta;
+      if (w > pw) { pw = w; paras = laji; }
+    }
+    return paras;
+  }
+  function lajiTeksti(l) {
+    const osat = [];
+    if (l.kpl) osat.push(String(l.kpl));
+    if (l.muutama) osat.push(l.muutama > 1 ? l.muutama + ' × muutama' : 'muutama');
+    if (l.monta) osat.push(l.monta > 1 ? l.monta + ' × monta' : 'monta');
+    return osat.join(' + ');
+  }
+  function yhteenvetoTeksti(y) {
+    return LAJIT.filter(l => y[l]).map(l => (MERKIT[l] ? MERKIT[l].nimi : l) + ' ' + lajiTeksti(y[l])).join(' · ');
+  }
+  /** Lajeittain syvyysväli niistä rei'istä, joista lajia on saatu [L]. */
+  function lajienSyvyydet(reiat) {
+    const out = {};
+    for (const r of reiat || []) {
+      if (!isFinite(r.syvyys_m)) continue;
+      for (const laji of Object.keys(saalisYhteenveto(r.saaliit))) {
+        const o = out[laji] || (out[laji] = { min: Infinity, max: -Infinity, reikia: 0 });
+        o.min = Math.min(o.min, r.syvyys_m); o.max = Math.max(o.max, r.syvyys_m); o.reikia++;
+      }
+    }
+    return out;
+  }
+  const syvTeksti = m => !isFinite(m) ? '?' : (m >= 10 ? String(Math.round(m)) : String(Math.round(m * 10) / 10).replace('.', ','));
+
   // ------------------------------------------------------------ karttanäkymä (vain selaimessa)
   const JALKI_VARI = [224, 17, 95];   // #e0115f
 
@@ -149,7 +216,7 @@
       this.zMin = 6; this.zMax = 18.5;
       this.laatat = new Map(); this.w = 0; this.h = 0; this.dpr = 1;
       this.syvyys = [];            // puraSyvyys-tulokset
-      this.jalki = []; this.pysahdykset = []; this.pisteet = []; this.gps = null; this.leiri = null;
+      this.jalki = []; this.pysahdykset = []; this.pisteet = []; this.reiat = []; this.aktiivinenId = null; this.gps = null; this.leiri = null;
       this.seuraa = false; this.valittu = null;
       this.onTap = null; this.onLongPress = null; this.onMuutos = null;
       this._osoittimet = new Map(); this._piirtoPyydetty = false;
@@ -204,6 +271,7 @@
       this._syvyys();
       this._jalki();
       this._pysahdykset();
+      this._reiat();
       this._leiri();
       this._pisteet();
       this._gps();
@@ -311,6 +379,34 @@
       }
       g.restore();
     }
+    _reiat() {
+      const g = this.g, nyt = Date.now();
+      for (const r of this.reiat) {
+        const [x, y] = this.ruutu(r.lat, r.lon);
+        if (x < -30 || y < -30 || x > this.w + 30 || y > this.h + 30) continue;
+        const yv = saalisYhteenveto(r.saaliit), pl = paalaji(yv), M = pl ? (MERKIT[pl] || MERKIT.muu) : null;
+        const al = Math.max(0.45, jalkiAlfa((nyt - reikaViimeisin(r)) / 1000));
+        g.save(); g.globalAlpha = al;
+        if (r.id === this.aktiivinenId) {
+          g.beginPath(); g.arc(x, y, 17, 0, 2 * Math.PI); g.lineWidth = 4; g.strokeStyle = '#ffc928'; g.stroke();
+        }
+        g.beginPath(); g.arc(x, y, 12, 0, 2 * Math.PI);
+        g.fillStyle = M ? M.vari : '#ffffff'; g.fill();
+        g.lineWidth = 2.5; g.strokeStyle = M ? '#ffc928' : '#0a2150'; g.stroke();
+        g.fillStyle = M ? '#ffffff' : '#0a2150'; g.font = '700 10px system-ui, sans-serif';
+        g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(syvTeksti(r.syvyys_m), x, y + 0.5);
+        const n = (r.saaliit || []).length;
+        if (n) {
+          g.beginPath(); g.arc(x + 11, y - 11, 7.5, 0, 2 * Math.PI); g.fillStyle = '#ffc928'; g.fill();
+          g.lineWidth = 1.5; g.strokeStyle = '#0a2150'; g.stroke();
+          g.fillStyle = '#0a2150'; g.font = '800 9px system-ui, sans-serif'; g.fillText(n > 9 ? '9+' : String(n), x + 11, y - 10.5);
+        }
+        if (this.valittu && this.valittu.laji === 'reika' && this.valittu.kohde === r) {
+          g.beginPath(); g.arc(x, y, 21, 0, 2 * Math.PI); g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
+        }
+        g.restore();
+      }
+    }
     piirraMerkki(g, merkki, x, y, r) {
       const M = MERKIT[merkki] || MERKIT.muu;
       g.save();
@@ -357,6 +453,11 @@
       for (const p of this.pisteet) {
         const [px, py] = this.ruutu(p.lat, p.lon), d = Math.hypot(px - x, py - y);
         if (d <= 26 && (!paras || d < paras.d)) paras = { laji: 'piste', kohde: p, d };
+      }
+      if (paras) return paras;
+      for (const r of this.reiat) {
+        const [px, py] = this.ruutu(r.lat, r.lon), d = Math.hypot(px - x, py - y);
+        if (d <= 24 && (!paras || d < paras.d)) paras = { laji: 'reika', kohde: r, d };
       }
       if (paras) return paras;
       for (const p of this.pysahdykset) {
@@ -434,7 +535,8 @@
   }
 
   const PilkkiKartta = { TILE, mx, my, mLat, mLon, etaisyysM, JALKI, jalkiLisaa, jalkiAlfa, jalkiOsat, PYSAHDYS, pysahdykset,
-    puraSyvyys, MERKIT, Kartta };
+    puraSyvyys, MERKIT, REIKA, LAJIT, reikaViimeisin, aktiivinenReika, saalisYhteenveto, paalaji, lajiTeksti, yhteenvetoTeksti,
+    lajienSyvyydet, syvTeksti, Kartta };
   if (typeof module !== 'undefined' && module.exports) module.exports = PilkkiKartta;
   else root.PilkkiKartta = PilkkiKartta;
 })(typeof window !== 'undefined' ? window : this);
