@@ -19,6 +19,8 @@ on:
       - "hae_pilkki.py"
       - "hae_syvyys.py"
       - "kartta.js"
+      - "manifest.json"
+      - "*.png"
       - ".github/workflows/pilkkitutka.yml"
 
 permissions:
@@ -49,6 +51,10 @@ jobs:
           mkdir -p _site/data
           cp *.html *.js _site/
           touch _site/.nojekyll
+          # aloitusnäytön sovellus: manifesti ja kuvakkeet; puuttuva tiedosto näkyy varoituksena eikä estä julkaisua
+          for f in manifest.json icon-192.png icon-512.png icon-192-maskable.png icon-512-maskable.png apple-touch-icon.png favicon-48.png; do
+            if [ -f "$f" ]; then cp "$f" _site/; else echo "::warning::puuttuu $f (lataa varaston juureen)"; fi
+          done
           curl -sfL "https://lohirosvo.github.io/pilkkitutka/data/pilkki.json" \
             -o _site/data/pilkki_ed.json || echo "Ei aiempaa dataa"
 
