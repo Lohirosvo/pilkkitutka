@@ -34,8 +34,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v001"
-UA = "pilkkitutka/v001 (+https://lohirosvo.github.io/pilkkitutka/)"
+VERSIO = "v002"
+UA = "pilkkitutka/v002 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
 # Alue Kaskinen–Mikkelinsaaret [O: rajaus väljä, kattaa Kaskisen 62,33 ja Mikkelinsaarten 63,46]
@@ -55,6 +55,15 @@ PISTEET = [
     {"nimi": "Vaasa (Vaskiluoto)", "lat": 63.0815, "lon": 21.5712, "tarkkuus": "mareografi [T]"},
     {"nimi": "Raippaluoto", "lat": 63.23, "lon": 21.40, "tarkkuus": "likimääräinen [O]"},
     {"nimi": "Mikkelinsaaret", "lat": 63.46, "lon": 21.775, "tarkkuus": "satama [T]"},
+]
+
+# Syvyyskäyrät kolmena osa-alueena, jotta puhelin lataa vain näkyvän alueen [O: rajaukset].
+# Merilohitutkan Vaasa-alue (0,61° × 0,85°) oli 1,07 Mt, joten koko alue yhtenä olisi raskas.
+SIVU = "https://lohirosvo.github.io/pilkkitutka/"
+SYVYYS_ALUEET = [
+    {"nimi": "etela", "otsikko": "Kaskinen–Närpiö", "alue": {"lat_min": 62.25, "lat_max": 62.62, "lon_min": 20.75, "lon_max": 21.70}},
+    {"nimi": "keski", "otsikko": "Korsnäs–Åminne", "alue": {"lat_min": 62.60, "lat_max": 63.05, "lon_min": 20.75, "lon_max": 21.80}},
+    {"nimi": "pohjoinen", "otsikko": "Vaasa–Raippaluoto–Mikkelinsaaret", "alue": {"lat_min": 63.00, "lat_max": 63.55, "lon_min": 20.75, "lon_max": 22.10}},
 ]
 
 # FMI:n place-haku valitsee lähimmän havaintoaseman (Maalahti -> 62,935 21,185 tarkistettu 23.11.2026)
@@ -467,6 +476,33 @@ def hae_jaakartta(nyt):
     return {"dataset": ds_id, "aika": None, "huom": "ei jäätä viimeisen 7 vrk jääkartoissa"}
 
 
+# ---------------------------------------------------------------- syvyyskäyrät (Traficom, hae_syvyys.py)
+
+def hae_syvyydet(data_kansio):
+    """Merilohitutkan hae_syvyys.paivita jokaiselle osa-alueelle. Alle 30 vrk vanha julkaistu tiedosto käytetään
+    sellaisenaan, joten Traficomin rajapintaa kuormitetaan vain kerran kuussa."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import hae_syvyys
+    tulos = []
+    for a in SYVYYS_ALUEET:
+        kansio = os.path.join(data_kansio, "syvyys", a["nimi"])
+        os.makedirs(kansio, exist_ok=True)
+        print(f"  {a['nimi']} ({a['otsikko']})")
+        tila = hae_syvyys.paivita(kansio, f"{SIVU}data/syvyys/{a['nimi']}/", loki=lambda s: print("    " + str(s)),
+                                  alue=a["alue"])
+        rivi = dict(a, polku=f"data/syvyys/{a['nimi']}/syvyys.json", **(tila or {}))
+        polku = os.path.join(kansio, "syvyys.json")
+        if os.path.exists(polku):
+            rivi["kt"] = round(os.path.getsize(polku) / 1024)
+        else:
+            rivi["polku"] = None
+        tulos.append(rivi)
+    if not any(r.get("tila") in ("ok", "vanha") for r in tulos):
+        raise RuntimeError("yhdenkään osa-alueen syvyyskäyrät eivät onnistuneet: "
+                           + " | ".join(str(r.get("viesti", "")) for r in tulos)[:400])
+    return tulos
+
+
 # ---------------------------------------------------------------- 7. tilasto
 
 def kaudet(nyt, ensimmainen=2011):
@@ -567,6 +603,8 @@ def main(argv=None):
                                   ed.get("lampohistoria"))
     data["jaa_malli"] = vaihe("jaa_malli", lambda: hae_jaa_malli(nyt), ed.get("jaa_malli"))
     data["jaakartta"] = vaihe("jaakartta", lambda: hae_jaakartta(nyt), ed.get("jaakartta"))
+    data["syvyys_alueet"] = vaihe("syvyys", lambda: hae_syvyydet(os.path.dirname(os.path.abspath(args.ulos))),
+                                  ed.get("syvyys_alueet"))
     if args.tilasto:
         data["vk_tilasto"] = vaihe("vk_tilasto", lambda: laske_tilasto(nyt), ed.get("vk_tilasto"))
     else:

@@ -60,6 +60,28 @@
     vertical-align: middle; background: var(--c); }
   details summary { cursor: pointer; color: var(--pää); font-weight: 600; min-height: 32px; }
   .nuoli { display: inline-block; }
+  /* kartta */
+  #karttakehys { position: relative; height: 62vh; min-height: 320px; border-radius: 12px; overflow: hidden;
+    margin: 0 0 10px; border: 1px solid var(--raja); background: #aad3df; }
+  #kartta { width: 100%; height: 100%; display: block; }
+  .karttanapit { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .karttanapit button { width: 52px; height: 52px; border-radius: 10px; border: 1px solid #9fb2bf; background: rgba(255,255,255,.95);
+    font: 700 26px/1 system-ui, sans-serif; color: var(--pää); }
+  .karttanapit button.paalla { background: var(--pää); color: #fff; }
+  .karttatila { position: absolute; left: 8px; top: 8px; right: 70px; font-size: 13px; pointer-events: none; }
+  .karttatila span { display: inline-block; background: rgba(255,255,255,.9); border-radius: 8px; padding: 2px 8px; margin: 0 4px 4px 0; }
+  .attr { position: absolute; right: 4px; bottom: 2px; font-size: 10px; background: rgba(255,255,255,.75); padding: 1px 5px; border-radius: 4px; }
+  .karttapaneeli { position: absolute; left: 0; right: 0; bottom: 0; max-height: 75%; overflow: auto; background: #fff;
+    border-top: 1px solid var(--raja); padding: 12px 14px; box-shadow: 0 -4px 14px rgba(0,0,0,.15); }
+  .merkit { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0; }
+  .merkit button { border: 2px solid transparent; border-radius: 10px; background: #f1f5f8; padding: 6px 2px; min-height: 64px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; font: inherit; color: var(--teksti); }
+  .merkit button.valittu { border-color: var(--pää); background: #e3eef5; }
+  .merkit small { font-size: 11px; line-height: 1.1; }
+  .pallo { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-weight: 700; align-items: center; justify-content: center; }
+  .emoji { font-size: 24px; line-height: 28px; }
+  button.nappi.vaara { background: var(--punainen); }
+  .kytkin { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--teksti); min-height: 44px; }
 </style>
 </head>
 <body>
@@ -69,7 +91,7 @@
 </header>
 <nav>
   <button data-ruutu="jaaturva" class="valittu">Jääturva</button>
-  <button data-ruutu="jaalla">Jäällä</button>
+  <button data-ruutu="kartta">Kartta</button>
   <button data-ruutu="raportit">Raportit</button>
 </nav>
 <main>
@@ -84,10 +106,40 @@
     <div class="kortti" id="k-tilasto"></div>
     <div class="kortti pieni" id="k-lahteet"></div>
   </section>
-  <section id="ruutu-jaalla" hidden>
+  <section id="ruutu-kartta" hidden>
+    <div id="karttakehys">
+      <canvas id="kartta" aria-label="Kartta"></canvas>
+      <div class="karttanapit">
+        <button id="k-plus" aria-label="Lähennä">+</button>
+        <button id="k-miinus" aria-label="Loitonna">−</button>
+        <button id="k-minuun" aria-label="Oma sijainti ja seuraa">⌖</button>
+      </div>
+      <div class="karttatila" id="karttatila"></div>
+      <div class="attr">© OpenStreetMap-tekijät · syvyys Traficom · ei navigointiin</div>
+      <div class="karttapaneeli" id="karttapaneeli" hidden></div>
+    </div>
     <div class="kortti">
-      <h2>Jäällä</h2>
-      <p>Reikäloki ja Kala kiinni tulevat vaiheessa 3. Jään ja lumen mittaus on jo Jääturva-ruudussa.</p>
+      <div class="rivi">
+        <label class="kytkin"><input type="checkbox" id="jalki-paalla"> Tallenna jälkeä</label>
+        <label class="kytkin"><input type="checkbox" id="naytto-paalla"> Pidä näyttö päällä</label>
+      </div>
+      <p class="pieni hiljainen">Jälki tallentuu vain, kun Pilkkitutka on auki ja näyttö päällä – selain ei saa GPS:ää taustalla.
+        Jälki ja pisteet ovat vain tässä puhelimessa.</p>
+      <button class="nappi" id="piste-gps">＋ Piste tähän (GPS)</button>
+      <p class="pieni hiljainen">Pisteen voi lisätä myös painamalla karttaa pitkään. Napauta pistettä tai pysähdystä, niin näet tiedot.</p>
+      <p class="pieni" id="jalki-tila"></p>
+      <details><summary>Pysähdys = pilkkipaikka</summary>
+        <div class="rivi">
+          <div><label for="pys-min">Vähintään (min)</label><input id="pys-min" type="number" inputmode="numeric" min="1" step="1"></div>
+          <div><label for="pys-sade">Säde (m)</label><input id="pys-sade" type="number" inputmode="numeric" min="5" step="1"></div>
+        </div>
+        <p class="pieni hiljainen">Oletus 5 min alle 20 m säteellä. Katkoviivainen rengas: näyttö oli välillä pois, mutta olit samassa kohdassa ennen ja jälkeen.</p>
+      </details>
+      <details><summary>Selitteet</summary>
+        <p class="pieni">Jälki: kirkas = uusi, haalenee 10 vuorokaudessa. Rengas = pysähdys (minuutit näkyvät lähempää).
+          Syvyyskäyrät näkyvät lähennettäessä (Traficom; syvemmät käyrät tummempina, numerot lähempää). Sininen piste = GPS ja sen tarkkuus.</p>
+      </details>
+      <button class="nappi toissijainen" id="jalki-poista" style="margin-top:8px">Poista jälki</button>
     </div>
   </section>
   <section id="ruutu-raportit" hidden>
@@ -95,12 +147,13 @@
   </section>
 </main>
 
+<script src="kartta.js"></script>
 <script>
 'use strict';
-/* Pilkkitutka v001 (23.11.2026) – jääturva.
+/* Pilkkitutka v002 (23.11.2026) – jääturva.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v001';
+const VERSIO = 'v002';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -131,7 +184,8 @@ const VARAPISTEET = [                  // jos dataa ei ole, paikat silti valitta
   { nimi: 'Mikkelinsaaret', lat: 63.46, lon: 21.775 },
 ];
 const VARI = { vesi: '#1f6fb2', ennuste: '#7a4fb5', leiri: '#b3261e', il: '#c28a00' }; // SVG-värit
-const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 } };
+const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 },
+  jalkiPaalla: false, nayttoPaalla: false, pysahdys: { min: 5, sade: 20 }, kartta: null };
 
 // --- tila
 const $ = id => document.getElementById(id);
@@ -139,6 +193,7 @@ function lueLS(k, oletus) { try { const v = localStorage.getItem(k); return v ? 
 function kirjoitaLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
 const ASET = Object.assign({}, OLETUS, lueLS('pilkki_asetukset', {}));
 ASET.leiri = Object.assign({}, OLETUS.leiri, ASET.leiri || {});
+ASET.pysahdys = Object.assign({}, OLETUS.pysahdys, ASET.pysahdys || {});
 let MITTAUKSET = lueLS('pilkki_mittaukset', []);
 let DATA = null, DATA_LAHDE = '', SIJ = null, GPS_VIRHE = '';
 
@@ -549,8 +604,9 @@ function korttiVedenkorkeus(c) {
   }
   if (c.enn && c.enn.length) {
     const mx = c.enn.reduce((a, x) => x[1] > a[1] ? x : a), mn = c.enn.reduce((a, x) => x[1] < a[1] ? x : a);
-    h += `<p class="pieni">Ennuste ${tasoMerkki('ennuste FMI')} (${fi(c.ennKm, 0)} km pisteestä) ${klo(c.enn[c.enn.length - 1][0])} asti:
-      huippu ${fi(mx[1] / 100, 2)} m ${klo(mx[0])}, pohja ${fi(mn[1] / 100, 2)} m ${klo(mn[0])}.</p>`;
+    h += `<p class="pieni">Ennuste ${tasoMerkki('ennuste FMI')} ${klo(c.enn[c.enn.length - 1][0])} asti:
+      huippu ${fi(mx[1] / 100, 2)} m ${klo(mx[0])}, pohja ${fi(mn[1] / 100, 2)} m ${klo(mn[0])}.
+      <span class="hiljainen">FMI:n ennuste on asemakohtainen: Åminnen–Mikkelinsaarten pisteet saavat saman käyrän kuin Vaasa ${tasoMerkki('päätelty datasta')}.</span></p>`;
   }
   const viivat = [
     { y: c.leiriKorkeus, vari: VARI.leiri, teksti: `leirin maa ${fi(c.leiriKorkeus / 100, 2)}` },
@@ -727,7 +783,7 @@ function korttiMittaukset() {
       <button class="nappi toissijainen" id="vie">Vie tiedostoksi</button>
       <label class="nappi toissijainen" style="text-align:center;display:flex;align-items:center;justify-content:center;color:var(--pää);font-size:17px">Tuo tiedostosta<input type="file" id="tuo" accept="application/json,.json" hidden></label>
     </div>
-    <p class="pieni hiljainen">Mittaukset ovat vain tässä puhelimessa. Varmuuskopio tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
+    <p class="pieni hiljainen">Mittaukset, pisteet ja jälki ovat vain tässä puhelimessa. Varmuuskopio (kaikki kolme) tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
   $('k-mittaukset').innerHTML = h;
   document.querySelectorAll('[data-poista]').forEach(b => b.onclick = () => {
     if (!confirm('Poistetaanko mittaus?')) return;
@@ -735,9 +791,10 @@ function korttiMittaukset() {
     kirjoitaLS('pilkki_mittaukset', MITTAUKSET); piirra();
   });
   $('vie').onclick = () => {
-    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET }, null, 1)], { type: 'application/json' });
+    tallennaJalki(true);
+    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET, pisteet: PISTEET, jalki: JALKI })], { type: 'application/json' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `pilkkitutka_mittaukset_${paivaAvain(Date.now())}.json`;
+    a.href = URL.createObjectURL(blob); a.download = `pilkkitutka_varmuuskopio_${paivaAvain(Date.now())}.json`;
     document.body.appendChild(a); a.click(); a.remove();
   };
   $('tuo').onchange = async e => {
@@ -747,8 +804,222 @@ function korttiMittaukset() {
       const uudet = (d.mittaukset || []).filter(m => m && isFinite(m.t) && isFinite(m.jaa_cm));
       const olemassa = new Set(MITTAUKSET.map(m => m.t));
       let n = 0; for (const m of uudet) if (!olemassa.has(m.t)) { MITTAUKSET.push(m); n++; }
-      kirjoitaLS('pilkki_mittaukset', MITTAUKSET); alert(`Tuotu ${n} mittausta.`); piirra();
+      kirjoitaLS('pilkki_mittaukset', MITTAUKSET);
+      const pIdt = new Set(PISTEET.map(p => p.id)); let np = 0;
+      for (const p of (d.pisteet || [])) if (p && isFinite(p.lat) && isFinite(p.lon) && !pIdt.has(p.id)) { PISTEET.push(p); np++; }
+      tallennaPisteet();
+      const jt = new Set(JALKI.map(x => x[0])); let nj = 0;
+      for (const x of (d.jalki || [])) if (Array.isArray(x) && x.length >= 3 && !jt.has(x[0])) { JALKI.push(x); nj++; }
+      if (nj) { JALKI.sort((a, b) => a[0] - b[0]); JALKI = PK.jalkiLisaa(JALKI, null, Date.now()).jalki; jalkiMuuttui = true; tallennaJalki(true); paivitaPysahdykset(); }
+      alert(`Tuotu ${n} mittausta, ${np} pistettä ja ${nj} jäljen pistettä.`); piirra(); paivitaJalkiTila();
     } catch (err) { alert('Tiedostoa ei voitu lukea: ' + err.message); }
+  };
+}
+
+
+// --- kartta: jälki, pysähdykset, omat pisteet (vain tässä puhelimessa)
+const PK = window.PilkkiKartta;
+let KARTTA = null, NAKYVA = 'jaaturva', GPS = null, watchId = null, wakeLock = null, NAYTTO_VIRHE = '', KARTTA_GPS_VIRHE = '';
+let JALKI = (lueLS('pilkki_jalki', {}) || {}).p || [], jalkiMuuttui = false, jalkiTallennettu = 0;
+let PISTEET = lueLS('pilkki_pisteet', []) || [];
+let PIILOTETUT = new Set(lueLS('pilkki_piilotetut', []) || []);
+const SYV_TILA = new Map();
+
+function tallennaJalki(heti) {
+  if (!jalkiMuuttui || (!heti && Date.now() - jalkiTallennettu < 20000)) return;
+  if (!kirjoitaLS('pilkki_jalki', { v: 1, p: JALKI })) KARTTA_GPS_VIRHE = 'Jäljen tallennus puhelimeen epäonnistui (tila täynnä?)';
+  jalkiTallennettu = Date.now(); jalkiMuuttui = false;
+}
+function tallennaPisteet() {
+  if (!kirjoitaLS('pilkki_pisteet', PISTEET)) alert('Pisteiden tallennus puhelimeen epäonnistui.');
+  if (KARTTA) { KARTTA.pisteet = PISTEET; KARTTA.piirra(); }
+}
+function laskePysahdykset() {
+  return PK.pysahdykset(JALKI, { sadeM: ASET.pysahdys.sade, minKestoS: ASET.pysahdys.min * 60 }).filter(p => !PIILOTETUT.has(p.t0));
+}
+function paivitaPysahdykset() { if (KARTTA) { KARTTA.pysahdykset = laskePysahdykset(); KARTTA.jalki = JALKI; KARTTA.piirra(); } }
+
+function uusiSijainti(pos) {
+  const c = pos.coords;
+  GPS = { lat: c.latitude, lon: c.longitude, tarkkuus: c.accuracy, t: pos.timestamp || Date.now() };
+  KARTTA_GPS_VIRHE = '';
+  if (ASET.jalkiPaalla) {
+    const r = PK.jalkiLisaa(JALKI, { t: GPS.t, lat: GPS.lat, lon: GPS.lon, tarkkuus: GPS.tarkkuus }, Date.now());
+    if (r.lisatty || r.poistettu) { JALKI = r.jalki; jalkiMuuttui = true; tallennaJalki(false); paivitaPysahdykset(); }
+  }
+  if (KARTTA) { KARTTA.gps = GPS; if (KARTTA.seuraa) KARTTA.keskita(GPS.lat, GPS.lon); else KARTTA.piirra(); }
+  paivitaJalkiTila();
+}
+function gpsSeuranta() {
+  const tarvitaan = ASET.jalkiPaalla || NAKYVA === 'kartta';
+  if (tarvitaan && watchId === null && 'geolocation' in navigator) {
+    watchId = navigator.geolocation.watchPosition(uusiSijainti, err => { KARTTA_GPS_VIRHE = 'GPS: ' + err.message; paivitaJalkiTila(); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 60000 });
+  } else if (!tarvitaan && watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+}
+async function nayttoLukko() {
+  if (!ASET.nayttoPaalla) { if (wakeLock) { try { await wakeLock.release(); } catch (e) {} wakeLock = null; } paivitaJalkiTila(); return; }
+  if (document.visibilityState !== 'visible' || wakeLock) return;
+  if (!('wakeLock' in navigator)) { NAYTTO_VIRHE = 'Selain ei osaa pitää näyttöä päällä.'; paivitaJalkiTila(); return; }
+  try {
+    wakeLock = await navigator.wakeLock.request('screen'); NAYTTO_VIRHE = '';
+    wakeLock.addEventListener('release', () => { wakeLock = null; paivitaJalkiTila(); });
+  } catch (e) { NAYTTO_VIRHE = 'Näytön lukitus ei onnistunut: ' + e.message; }
+  paivitaJalkiTila();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') nayttoLukko(); else tallennaJalki(true);
+});
+window.addEventListener('pagehide', () => tallennaJalki(true));
+
+function paivitaJalkiTila() {
+  const el = $('jalki-tila');
+  const S = KARTTA ? KARTTA.pysahdykset : laskePysahdykset();
+  if (el) {
+    const vanhin = JALKI.length ? pvmKlo(JALKI[0][0] * 1000) : null;
+    el.innerHTML = (JALKI.length ? `Jälki: ${JALKI.length} pistettä, vanhin ${vanhin}. Pysähdyksiä ${S.length}.` : 'Ei jälkeä viimeisen 10 vrk ajalta.') +
+      `<br>Tallennus ${ASET.jalkiPaalla ? '<b>päällä</b>' : 'pois'} · näyttö ${wakeLock ? '<b>pidetään päällä</b>' : 'sammuu normaalisti'}` +
+      (GPS ? ` · GPS ±${fi(GPS.tarkkuus)} m` : '') +
+      (NAYTTO_VIRHE ? `<br><span style="color:var(--punainen)">${esc(NAYTTO_VIRHE)}</span>` : '') +
+      (KARTTA_GPS_VIRHE ? `<br><span style="color:var(--punainen)">${esc(KARTTA_GPS_VIRHE)}</span>` : '');
+  }
+  paivitaKarttaTila();
+}
+function paivitaKarttaTila() {
+  const el = $('karttatila'); if (!el || !KARTTA) return;
+  const osat = [];
+  if (ASET.jalkiPaalla) osat.push('<span style="color:#c2185b">● jälki tallentuu</span>');
+  const al = (DATA && DATA.syvyys_alueet) || [];
+  if (!al.some(a => a.polku)) osat.push('<span>syvyyskäyriä ei ole vielä haettu</span>');
+  else if (KARTTA.z < 10) osat.push('<span>lähennä: syvyyskäyrät</span>');
+  else if ([...SYV_TILA.values()].includes('lataa')) osat.push('<span>ladataan syvyyskäyriä…</span>');
+  else if ([...SYV_TILA.values()].includes('virhe')) osat.push('<span>syvyyskäyrien lataus epäonnistui</span>');
+  el.innerHTML = osat.join('');
+  const b = $('k-minuun'); if (b) b.classList.toggle('paalla', !!KARTTA.seuraa);
+}
+function lataaSyvyydet() {
+  if (!KARTTA || !DATA || !DATA.syvyys_alueet || KARTTA.z < 10) return;
+  const A = KARTTA.nakyvaAlue();
+  for (const s of DATA.syvyys_alueet) {
+    if (!s || !s.polku || !s.alue || SYV_TILA.has(s.nimi)) continue;
+    const a = s.alue;
+    if (a.lat_max < A.lat_min || a.lat_min > A.lat_max || a.lon_max < A.lon_min || a.lon_min > A.lon_max) continue;
+    SYV_TILA.set(s.nimi, 'lataa');
+    fetch(s.polku).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))).then(j => {
+      const pura = PK.puraSyvyys(j);
+      if (!pura) throw new Error('tuntematon muoto');
+      KARTTA.syvyys.push(pura); SYV_TILA.set(s.nimi, 'ok'); KARTTA.piirra(); paivitaKarttaTila();
+    }).catch(() => { SYV_TILA.set(s.nimi, 'virhe'); paivitaKarttaTila(); setTimeout(() => SYV_TILA.delete(s.nimi), 60000); });
+  }
+  paivitaKarttaTila();
+}
+let nakymaAjastin = null;
+function tallennaNakyma() {
+  clearTimeout(nakymaAjastin);
+  nakymaAjastin = setTimeout(() => { ASET.kartta = { lat: +KARTTA.lat.toFixed(5), lon: +KARTTA.lon.toFixed(5), z: +KARTTA.z.toFixed(2) }; kirjoitaLS('pilkki_asetukset', ASET); }, 1000);
+}
+function suljePaneeli() { const el = $('karttapaneeli'); el.hidden = true; el.innerHTML = ''; if (KARTTA) { KARTTA.valittu = null; KARTTA.piirra(); } }
+function merkkiHtml(k) {
+  const M = PK.MERKIT[k] || PK.MERKIT.muu;
+  return M.kirjain ? `<span class="pallo" style="background:${M.vari}">${esc(M.kirjain)}</span>` : `<span class="emoji">${M.merkki}</span>`;
+}
+function avaaPisteDialogi(p) {
+  const uusi = !p.id;
+  let merkki = p.merkki || 'ahven';
+  const el = $('karttapaneeli');
+  el.innerHTML = `<b>${uusi ? 'Uusi piste' : 'Muokkaa pistettä'}</b> <span class="pieni hiljainen">${fi(p.lat, 5)} N, ${fi(p.lon, 5)} E</span>
+    <div class="merkit">${Object.entries(PK.MERKIT).map(([k, M]) =>
+      `<button data-merkki="${k}" class="${k === merkki ? 'valittu' : ''}">${merkkiHtml(k)}<small>${esc(M.nimi)}</small></button>`).join('')}</div>
+    <label for="piste-nimi">Nimi</label><input id="piste-nimi" maxlength="40" autocomplete="off" value="${esc(p.nimi || '')}">
+    <div class="rivi" style="margin-top:8px"><button class="nappi" id="piste-tallenna">Tallenna</button>
+      <button class="nappi toissijainen" id="piste-peruuta">Peruuta</button>${uusi ? '' : '<button class="nappi vaara" id="piste-poista">Poista</button>'}</div>`;
+  el.hidden = false;
+  el.querySelectorAll('[data-merkki]').forEach(b => b.onclick = () => {
+    merkki = b.dataset.merkki; el.querySelectorAll('[data-merkki]').forEach(x => x.classList.toggle('valittu', x === b));
+  });
+  $('piste-tallenna').onclick = () => {
+    const nimi = $('piste-nimi').value.trim().slice(0, 40);
+    if (uusi) PISTEET.push({ id: Date.now(), t: Date.now(), lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6), merkki, nimi });
+    else Object.assign(p, { merkki, nimi });
+    tallennaPisteet(); suljePaneeli(); paivitaJalkiTila();
+  };
+  $('piste-peruuta').onclick = suljePaneeli;
+  if (!uusi) $('piste-poista').onclick = () => {
+    if (!confirm('Poistetaanko piste?')) return;
+    PISTEET = PISTEET.filter(x => x !== p); tallennaPisteet(); suljePaneeli();
+  };
+}
+function naytaKohde(os) {
+  const el = $('karttapaneeli');
+  if (!os) { suljePaneeli(); return; }
+  if (os.laji === 'piste') {
+    const p = os.kohde, M = PK.MERKIT[p.merkki] || PK.MERKIT.muu;
+    const etGps = GPS ? ` · ${fi(PK.etaisyysM(GPS.lat, GPS.lon, p.lat, p.lon))} m sinusta` : '';
+    el.innerHTML = `<div class="rivi" style="align-items:center">${merkkiHtml(p.merkki)}<div style="flex:1 1 auto"><b>${esc(p.nimi || M.nimi)}</b><br>
+      <span class="pieni hiljainen">${esc(M.nimi)} · tallennettu ${pvmKlo(p.t)}${etGps}<br>${fi(p.lat, 5)} N, ${fi(p.lon, 5)} E</span></div></div>
+      <div class="rivi" style="margin-top:8px"><button class="nappi" id="kohde-muokkaa">Muokkaa</button><button class="nappi toissijainen" id="kohde-sulje">Sulje</button></div>`;
+    el.hidden = false;
+    $('kohde-muokkaa').onclick = () => avaaPisteDialogi(p);
+    $('kohde-sulje').onclick = suljePaneeli;
+  } else {
+    const p = os.kohde;
+    el.innerHTML = `<b>Pilkkipaikka</b> <span class="taso">oletus pysähdyksestä</span><br>
+      ${pvmKlo(p.t0 * 1000)}–${aikaFi(p.t1 * 1000, { hour: '2-digit', minute: '2-digit' })} · ${Math.round(p.kestoS / 60)} min
+      ${p.katko ? '<br><span class="pieni hiljainen">Näyttö oli välillä pois: kesto on arvio samasta kohdasta ennen ja jälkeen.</span>' : ''}
+      <div class="rivi" style="margin-top:8px"><button class="nappi" id="kohde-piste">Tallenna pisteeksi</button>
+        <button class="nappi toissijainen" id="kohde-piilota">Ei pilkkipaikka</button><button class="nappi toissijainen" id="kohde-sulje">Sulje</button></div>`;
+    el.hidden = false;
+    $('kohde-piste').onclick = () => avaaPisteDialogi({ lat: p.lat, lon: p.lon, merkki: 'hyva', nimi: '' });
+    $('kohde-piilota').onclick = () => { PIILOTETUT.add(p.t0); kirjoitaLS('pilkki_piilotetut', [...PIILOTETUT]); suljePaneeli(); paivitaPysahdykset(); paivitaJalkiTila(); };
+    $('kohde-sulje').onclick = suljePaneeli;
+  }
+}
+function avaaKartta() {
+  if (!PK) return;
+  if (!KARTTA) {
+    const alku = ASET.kartta || (ASET.leiri.lat != null ? { lat: ASET.leiri.lat, lon: ASET.leiri.lon, z: 14 } : { lat: 62.972, lon: 21.488, z: 12 });
+    KARTTA = new PK.Kartta($('kartta'), alku);
+    KARTTA.jalki = JALKI; KARTTA.pisteet = PISTEET; KARTTA.leiri = ASET.leiri; KARTTA.gps = GPS;
+    KARTTA.onMuutos = () => { lataaSyvyydet(); paivitaKarttaTila(); tallennaNakyma(); };
+    KARTTA.onTap = os => naytaKohde(os);
+    KARTTA.onLongPress = (lat, lon) => { KARTTA.valittu = null; avaaPisteDialogi({ lat, lon }); };
+    $('k-plus').onclick = () => KARTTA.zoomaa(2);
+    $('k-miinus').onclick = () => KARTTA.zoomaa(0.5);
+    $('k-minuun').onclick = () => {
+      KARTTA.seuraa = !KARTTA.seuraa;
+      if (KARTTA.seuraa && GPS) KARTTA.keskita(GPS.lat, GPS.lon, Math.max(KARTTA.z, 15));
+      paivitaKarttaTila();
+    };
+    window.addEventListener('resize', () => KARTTA && KARTTA.koko());
+    paivitaPysahdykset();
+  }
+  KARTTA.leiri = ASET.leiri;
+  KARTTA.koko(); lataaSyvyydet(); paivitaJalkiTila();
+}
+function kiinnitaKarttaOhjaimet() {
+  const jp = $('jalki-paalla'), np = $('naytto-paalla');
+  jp.checked = !!ASET.jalkiPaalla; np.checked = !!ASET.nayttoPaalla;
+  jp.onchange = () => { ASET.jalkiPaalla = jp.checked; kirjoitaLS('pilkki_asetukset', ASET); gpsSeuranta(); paivitaJalkiTila(); };
+  np.onchange = () => { ASET.nayttoPaalla = np.checked; kirjoitaLS('pilkki_asetukset', ASET); nayttoLukko(); };
+  $('pys-min').value = ASET.pysahdys.min; $('pys-sade').value = ASET.pysahdys.sade;
+  const pys = () => {
+    const m = parseFloat($('pys-min').value), r = parseFloat($('pys-sade').value);
+    if (isFinite(m) && m >= 1) ASET.pysahdys.min = m;
+    if (isFinite(r) && r >= 5) ASET.pysahdys.sade = r;
+    kirjoitaLS('pilkki_asetukset', ASET); paivitaPysahdykset(); paivitaJalkiTila();
+  };
+  $('pys-min').onchange = pys; $('pys-sade').onchange = pys;
+  $('piste-gps').onclick = () => {
+    const avaa = (lat, lon) => { if (NAKYVA !== 'kartta') vaihdaRuutu('kartta'); avaaPisteDialogi({ lat, lon }); };
+    if (GPS && Date.now() - GPS.t < 30000) return avaa(GPS.lat, GPS.lon);
+    if (!('geolocation' in navigator)) return alert('Puhelin ei anna sijaintia.');
+    navigator.geolocation.getCurrentPosition(pos => avaa(pos.coords.latitude, pos.coords.longitude),
+      err => alert('GPS ei vastannut: ' + err.message), { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+  };
+  $('jalki-poista').onclick = () => {
+    if (!confirm('Poistetaanko koko jälki tästä puhelimesta?')) return;
+    JALKI = []; jalkiMuuttui = true; tallennaJalki(true); PIILOTETUT.clear(); kirjoitaLS('pilkki_piilotetut', []);
+    paivitaPysahdykset(); paivitaJalkiTila();
   };
 }
 
@@ -757,7 +1028,7 @@ function piirra() {
   if (!SIJ && ASET.paikka !== 'gps') asetaPaikka();
   const c = konteksti();
   const ika = DATA ? (Date.now() - aikaMs(DATA.haettu)) / 3600e3 : null;
-  $('otsikkotila').textContent = DATA ? `data ${fi(ika, ika < 10 ? 1 : 0)} h vanhaa · ${DATA_LAHDE}` : 'ei dataa';
+  $('otsikkotila').textContent = (DATA ? `data ${fi(ika, ika < 10 ? 1 : 0)} h vanhaa · ${DATA_LAHDE}` : 'ei dataa') + (ASET.jalkiPaalla ? ' · ● jälki' : '');
   const kortit = [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiJaa, korttiKasvu, korttiSaa, korttiTilasto, korttiLahteet];
   for (const k of kortit) {
     try { k(c); } catch (e) { console.error(k.name, e); }
@@ -765,20 +1036,27 @@ function piirra() {
   try { korttiMittaukset(); } catch (e) { console.error('korttiMittaukset', e); }
 }
 
-document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('valittu', x === b));
-  document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'ruutu-' + b.dataset.ruutu);
+function vaihdaRuutu(nimi) {
+  NAKYVA = nimi;
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('valittu', x.dataset.ruutu === nimi));
+  document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'ruutu-' + nimi);
   window.scrollTo(0, 0);
-});
+  if (nimi === 'kartta') avaaKartta();
+  gpsSeuranta();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaihdaRuutu(b.dataset.ruutu));
 
 (async function kaynnista() {
   asetaPaikka();
   await lataaData();
   if (ASET.paikka !== 'gps') asetaPaikka();
   piirra();
+  kiinnitaKarttaOhjaimet();
+  gpsSeuranta(); nayttoLukko(); paivitaJalkiTila();
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
     navigator.serviceWorker.register('sw.js').catch(() => {});
-  setInterval(async () => { if (document.visibilityState === 'visible') { await lataaData(); piirra(); } }, 30 * 60e3);
+  setInterval(async () => { if (document.visibilityState === 'visible') { await lataaData(); piirra(); lataaSyvyydet(); } }, 30 * 60e3);
+  setInterval(() => { if (KARTTA && NAKYVA === 'kartta') KARTTA.piirra(); }, 60e3);   // jäljen haalistuminen
 })();
 </script>
 </body>
