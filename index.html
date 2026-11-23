@@ -147,7 +147,13 @@
   .briiffi li.ok { border-left-color: var(--tutka); }
   .briiffi li.loppu { font-size: 14px; color: var(--hiljainen); border-bottom: 0; }
   input[type=range] { min-height: 44px; padding: 0; border: 0; background: none; accent-color: #ffc928; flex: 1 1 auto; }
-  .kerrokset .valitsin button { min-height: 44px; }
+  .kerrokset .valitsin button { min-height: 44px; flex: 1 1 28%; }
+  .virtaviivat { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  .salmityokalu { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(10, 33, 80, .94); color: #eef7ff;
+    border-top: 2px solid #ffc928; padding: 6px 10px; box-shadow: 0 -4px 14px rgba(0, 0, 0, .35); font-size: 13px; line-height: 1.3; }
+  .salmityokalu .rivi { flex-wrap: nowrap; gap: 6px; margin-top: 4px; }
+  .salmityokalu .nappi { min-height: 44px; padding: 4px 8px; font-size: 16px; }
+  button.linkki { background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: var(--jaa); text-decoration: underline; text-align: left; }
   .ilmoitus { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #ffc928; color: #0a1f4d;
     font-weight: 800; padding: 10px 18px; border-radius: 24px; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); z-index: 20; }
 </style>
@@ -187,14 +193,16 @@
     <div class="kortti" id="k-reika"></div>
     <div id="karttakehys">
       <canvas id="kartta" aria-label="Kartta"></canvas>
+      <canvas id="kartta-virta" class="virtaviivat" aria-hidden="true"></canvas>
       <div class="karttanapit">
         <button id="k-plus" aria-label="Lähennä">+</button>
         <button id="k-miinus" aria-label="Loitonna">−</button>
         <button id="k-minuun" aria-label="Oma sijainti ja seuraa">⌖</button>
       </div>
       <div class="karttatila" id="karttatila"></div>
-      <div class="attr">© OpenStreetMap-tekijät · syvyys Traficom · jää, virta Copernicus · ei navigointiin</div>
+      <div class="attr">© OpenStreetMap-tekijät · syvyys Traficom · väylät Väylävirasto · jää, virta Copernicus · ei navigointiin</div>
       <div class="karttapaneeli" id="karttapaneeli" hidden></div>
+      <div class="salmityokalu" id="salmityokalu" hidden></div>
     </div>
     <div class="kortti kerrokset" id="k-kerrokset"></div>
     <div class="kortti">
@@ -204,7 +212,7 @@
       </div>
       <p class="pieni hiljainen">Jälki tallentuu vain, kun Pilkkitutka on auki ja näyttö päällä – selain ei saa GPS:ää taustalla.
         Jälki ja pisteet ovat vain tässä puhelimessa.</p>
-      <button class="nappi" id="piste-gps">＋ Piste tähän (GPS)</button>
+      <div class="rivi"><button class="nappi" id="piste-gps">＋ Piste tähän (GPS)</button><button class="nappi toissijainen" id="salmi-uusi">≈ Mittaa salmi</button></div>
       <p class="pieni hiljainen">Pisteen voi lisätä myös painamalla karttaa pitkään. Napauta pistettä tai pysähdystä, niin näet tiedot.</p>
       <p class="pieni" id="jalki-tila"></p>
       <details><summary>Pysähdys = pilkkipaikka</summary>
@@ -231,10 +239,10 @@
 <script src="tilanne.js"></script>
 <script>
 'use strict';
-/* Pilkkitutka v004 (23.11.2026) – tilannekuva, jääturva, kartta, reikäloki.
+/* Pilkkitutka v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v004';
+const VERSIO = 'v005';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -268,7 +276,7 @@ const VARI = { vesi: 'var(--vari-vesi)', ennuste: 'var(--vari-ennuste)', leiri: 
 const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 },
   jalkiPaalla: false, nayttoPaalla: false, pysahdys: { min: 5, sade: 20 }, kartta: null,
   pilkki: 'tasapaino', aurinko: false,
-  kerrokset: { jaa: false, virta: false, tuuli: false }, virtaTaso: 0, salmi: { nimi: '', ala_km2: null, leveys_m: null, syvyys_m: null } };
+  kerrokset: { jaa: false, pohja: false, virta: false, tuuli: false, vaylat: true }, virtaTaso: 0, virtaviivat: true };
 
 // --- tila
 const $ = id => document.getElementById(id);
@@ -278,7 +286,6 @@ const ASET = Object.assign({}, OLETUS, lueLS('pilkki_asetukset', {}));
 ASET.leiri = Object.assign({}, OLETUS.leiri, ASET.leiri || {});
 ASET.pysahdys = Object.assign({}, OLETUS.pysahdys, ASET.pysahdys || {});
 ASET.kerrokset = Object.assign({}, OLETUS.kerrokset, ASET.kerrokset || {});
-ASET.salmi = Object.assign({}, OLETUS.salmi, ASET.salmi || {});
 let MITTAUKSET = lueLS('pilkki_mittaukset', []);
 let DATA = null, DATA_LAHDE = '', SIJ = null, GPS_VIRHE = '';
 
@@ -843,7 +850,7 @@ function korttiLahteet(c) {
   h += `<p>Haettu ${pvmKlo(aikaMs(DATA.haettu))} (${esc(DATA_LAHDE)}).</p><table>`;
   const nimet = { mareografit: 'Mareografit (FMI)', vk_ennuste: 'Vedenkorkeusennuste (FMI)', saa: 'Sääennuste HARMONIE (FMI)',
     lampohistoria: 'Lämpöhavainnot (FMI)', jaa_malli: 'Jäämalli (Copernicus BAL)', jaakartta: 'Jääkartta (Copernicus/FMI)', vk_tilasto: 'Vedenkorkeustilasto',
-    syvyys: 'Syvyyskäyrät (Traficom)', vesi: 'Virtaus ja veden lämpö (Copernicus BAL)' };
+    syvyys: 'Syvyyskäyrät (Traficom)', vesi: 'Virtaus ja veden lämpö (Copernicus BAL)', vaylat: 'Väylät ja turvalaitteet (Väylävirasto)' };
   for (const [k, t] of Object.entries(DATA.tila || {})) {
     const tila = t.ok ? (t.kantaa_edellisesta ? 'edellisestä' : 'ok') : (t.kantaa_edellisesta ? 'ei laskettu' : 'virhe');
     h += `<tr><td>${esc(nimet[k] || k)}</td><td>${esc(tila)}</td></tr>`;
@@ -869,7 +876,7 @@ function korttiMittaukset() {
       <button class="nappi toissijainen" id="vie">Vie tiedostoksi</button>
       <label class="nappi toissijainen" style="text-align:center;display:flex;align-items:center;justify-content:center;color:var(--jaa);font-size:17px">Tuo tiedostosta<input type="file" id="tuo" accept="application/json,.json" hidden></label>
     </div>
-    <p class="pieni hiljainen">Mittaukset, reiät, pisteet ja jälki ovat vain tässä puhelimessa. Varmuuskopio (kaikki) tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
+    <p class="pieni hiljainen">Mittaukset, reiät, pisteet, salmet ja jälki ovat vain tässä puhelimessa. Varmuuskopio (kaikki) tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
   $('k-mittaukset').innerHTML = h;
   document.querySelectorAll('[data-poista]').forEach(b => b.onclick = () => {
     if (!confirm('Poistetaanko mittaus?')) return;
@@ -878,7 +885,7 @@ function korttiMittaukset() {
   });
   $('vie').onclick = () => {
     tallennaJalki(true);
-    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET, pisteet: PISTEET, jalki: JALKI, reiat: REIAT })], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET, pisteet: PISTEET, jalki: JALKI, reiat: REIAT, salmet: SALMET })], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `pilkkitutka_varmuuskopio_${paivaAvain(Date.now())}.json`;
     document.body.appendChild(a); a.click(); a.remove();
@@ -900,7 +907,10 @@ function korttiMittaukset() {
       const rIdt = new Set(REIAT.map(r => r.id)); let nr = 0;
       for (const r of (d.reiat || [])) if (r && isFinite(r.lat) && isFinite(r.lon) && !rIdt.has(r.id)) { r.saaliit = r.saaliit || []; REIAT.push(r); nr++; }
       if (nr) tallennaReiat();
-      alert(`Tuotu ${n} mittausta, ${np} pistettä, ${nr} reikää ja ${nj} jäljen pistettä.`); piirra(); paivitaJalkiTila();
+      const sIdt = new Set(SALMET.map(x => x.id)); let ns = 0;
+      for (const x of (d.salmet || [])) if (x && Array.isArray(x.a) && Array.isArray(x.b) && !sIdt.has(x.id)) { SALMET.push(x); ns++; }
+      if (ns) tallennaSalmet();
+      alert(`Tuotu ${n} mittausta, ${np} pistettä, ${nr} reikää, ${ns} salmea ja ${nj} jäljen pistettä.`); piirra(); paivitaJalkiTila();
     } catch (err) { alert('Tiedostoa ei voitu lukea: ' + err.message); }
   };
 }
@@ -1155,6 +1165,7 @@ async function nayttoLukko() {
 }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') nayttoLukko(); else tallennaJalki(true);
+  if (typeof paivitaAnimaatio === 'function') paivitaAnimaatio();
 });
 window.addEventListener('pagehide', () => tallennaJalki(true));
 
@@ -1175,7 +1186,15 @@ function paivitaKarttaTila() {
   const el = $('karttatila'); if (!el || !KARTTA) return;
   const osat = [];
   if (ASET.jalkiPaalla) osat.push('<span style="color:#c2185b">● jälki tallentuu</span>');
-  if (kerrosPaalla()) osat.push(`<span>${KERROS.tunnit ? '+' + KERROS.tunnit + ' h ' : 'nyt '}${esc(klo(kerrosAika()))}</span>`);
+  if (SALMI_PIIRTO) osat.push('<span style="color:#ffc928">≈ salmen mittaus: napauta karttaa</span>');
+  if (kerrosPaalla() || SALMET.length) osat.push(`<span>${KERROS.tunnit ? '+' + KERROS.tunnit + ' h ' : 'nyt '}${esc(klo(kerrosAika()))}</span>`);
+  if (ASET.kerrokset.vaylat) {
+    const va = (DATA && DATA.vaylat_alueet) || [];
+    if (!va.some(a => a && a.polku)) osat.push('<span>väyliä ei ole vielä haettu</span>');
+    else if (KARTTA.z < 9) osat.push('<span>lähennä: väylät</span>');
+    else if ([...VAYLA_TILA.values()].includes('lataa')) osat.push('<span>ladataan väyliä…</span>');
+    else if (KARTTA.vaylat.some(V => V.merkit.length) && !KARTTA.merkitNakyvissa()) osat.push('<span>lähennä: merimerkit</span>');
+  }
   if (ASET.kerrokset.virta && VESI_TILA === 'lataa') osat.push('<span>ladataan virtausta…</span>');
   const al = (DATA && DATA.syvyys_alueet) || [];
   if (!al.some(a => a.polku)) osat.push('<span>syvyyskäyriä ei ole vielä haettu</span>');
@@ -1241,6 +1260,12 @@ function naytaKohde(os) {
   const el = $('karttapaneeli');
   if (!os) { suljePaneeli(); return; }
   if (os.laji === 'reika') { naytaReika(os.kohde); return; }
+  if (os.laji === 'salmi') { naytaSalmi(os.kohde); return; }
+  if (os.laji === 'merkki') {
+    el.innerHTML = `<b>${esc(PK.merkkiKuvaus(os.kohde))}</b><p class="pieni hiljainen" style="margin:6px 0">Väylävirasto, vesiväyläaineisto. Ei navigointiin.</p>
+      <div class="rivi"><button class="nappi toissijainen" id="kohde-sulje">Sulje</button></div>`;
+    el.hidden = false; $('kohde-sulje').onclick = suljePaneeli; return;
+  }
   if (os.laji === 'piste') {
     const p = os.kohde, M = PK.MERKIT[p.merkki] || PK.MERKIT.muu;
     const etGps = GPS ? ` · ${fi(PK.etaisyysM(GPS.lat, GPS.lon, p.lat, p.lon))} m sinusta` : '';
@@ -1270,9 +1295,13 @@ function avaaKartta() {
     const alku = ASET.kartta || (ASET.leiri.lat != null ? { lat: ASET.leiri.lat, lon: ASET.leiri.lon, z: 14 } : { lat: 62.972, lon: 21.488, z: 12 });
     KARTTA = new PK.Kartta($('kartta'), alku);
     KARTTA.jalki = JALKI; KARTTA.pisteet = PISTEET; KARTTA.reiat = REIAT; KARTTA.leiri = ASET.leiri; KARTTA.gps = GPS;
-    KARTTA.onMuutos = () => { lataaSyvyydet(); paivitaKarttaTila(); tallennaNakyma(); };
-    KARTTA.onTap = (os, lat, lon) => { if (!os && kerrosPaalla()) { KARTTA.valittu = null; naytaMalliArvot(lat, lon); } else naytaKohde(os); };
-    KARTTA.onLongPress = (lat, lon) => { KARTTA.valittu = null; avaaPisteDialogi({ lat, lon }); };
+    KARTTA.onMuutos = () => { lataaSyvyydet(); lataaVaylat(); paivitaKarttaTila(); tallennaNakyma(); };
+    KARTTA.onTap = (os, lat, lon) => {
+      if (SALMI_PIIRTO) return salmiNapautus(lat, lon);
+      if (!os && kerrosPaalla()) { KARTTA.valittu = null; naytaMalliArvot(lat, lon); } else naytaKohde(os);
+    };
+    ANIM = new PK.VirtaAnimaatio(KARTTA, $('kartta-virta'));
+    KARTTA.onLongPress = (lat, lon) => { if (SALMI_PIIRTO) return; KARTTA.valittu = null; avaaPisteDialogi({ lat, lon }); };
     $('k-plus').onclick = () => KARTTA.zoomaa(2);
     $('k-miinus').onclick = () => KARTTA.zoomaa(0.5);
     $('k-minuun').onclick = () => {
@@ -1280,12 +1309,13 @@ function avaaKartta() {
       if (KARTTA.seuraa && GPS) KARTTA.keskita(GPS.lat, GPS.lon, Math.max(KARTTA.z, 15));
       paivitaKarttaTila();
     };
-    window.addEventListener('resize', () => KARTTA && KARTTA.koko());
+    window.addEventListener('resize', () => { if (KARTTA) KARTTA.koko(); });
     paivitaPysahdykset();
   }
   KARTTA.leiri = ASET.leiri; KARTTA.reiat = REIAT;
   sidoKerrokset(); korttiKerrokset();
-  if (ASET.kerrokset.virta) lataaVesi();
+  if (ASET.kerrokset.virta || ASET.kerrokset.pohja) lataaVesi();
+  lataaVaylat(); paivitaAnimaatio();
   korttiReika();
   KARTTA.koko(); lataaSyvyydet(); paivitaJalkiTila();
 }
@@ -1302,6 +1332,7 @@ function kiinnitaKarttaOhjaimet() {
     kirjoitaLS('pilkki_asetukset', ASET); paivitaPysahdykset(); paivitaJalkiTila();
   };
   $('pys-min').onchange = pys; $('pys-sade').onchange = pys;
+  $('salmi-uusi').onclick = aloitaSalmi;
   $('piste-gps').onclick = () => {
     const avaa = (lat, lon) => { if (NAKYVA !== 'kartta') vaihdaRuutu('kartta'); avaaPisteDialogi({ lat, lon }); };
     if (GPS && Date.now() - GPS.t < 30000) return avaa(GPS.lat, GPS.lon);
@@ -1340,6 +1371,7 @@ async function lataaVesi() {
   } catch (e) { VESI_TILA = 'virhe'; VESI_AVAIN = null; }
   if (KARTTA) { KARTTA.vesi = VESI; KARTTA.piirra(); }
   try { piirraTilanne(konteksti()); korttiKerrokset(); } catch (e) { console.error('tilanne', e); }
+  paivitaAnimaatio();
   paivitaKarttaTila();
 }
 
@@ -1404,13 +1436,147 @@ function virtaTilanne(c) {
   }
   return o;
 }
-/** Jatkuvuusyhtälö: v = A · dh/dt / (leveys × (syvyys − jää)) [L]. */
-function salmiNopeus(s, cmH, jaaCm) {
-  if (!s || !(s.ala_km2 > 0) || !(s.leveys_m > 0) || !(s.syvyys_m > 0) || cmH == null) return null;
-  const vesisyv = s.syvyys_m - (jaaCm || 0) / 100;
-  if (vesisyv <= 0.05) return { umpi: true };
-  const q = s.ala_km2 * 1e6 * Math.abs(cmH) / 100 / 3600;          // m³/s
-  return { q, v: q / (s.leveys_m * vesisyv), vesisyv };
+// ---- omat salmet (v005): mitataan kartalta, vain tässä puhelimessa
+let SALMET = lueLS('pilkki_salmet', []) || [];
+let SALMI_PIIRTO = null;                 // { a, b, lahti: [] } piirron aikana
+const SALMI_SARJAT = new Map();
+function tallennaSalmet() {
+  if (!kirjoitaLS('pilkki_salmet', SALMET)) alert('Salmien tallennus puhelimeen epäonnistui (tila täynnä?).');
+  if (KARTTA) { KARTTA.salmet = SALMET; KARTTA.piirra(); }
+}
+const salmenKeski = s => ({ lat: (s.a[0] + s.b[0]) / 2, lon: (s.a[1] + s.b[1]) / 2 });
+const salmiMonikulmio = s => [s.a, s.b].concat(s.lahti || []);      // lahti kierretään B:stä A:han
+const salmiGeom = s => PT.salmiGeometria({ a: s.a, b: s.b, lahti: salmiMonikulmio(s) });
+function salmiSarjat(s) {
+  const avain = DATA ? DATA.haettu : '';
+  if (SALMI_SARJAT.avain !== avain) { SALMI_SARJAT.clear(); SALMI_SARJAT.avain = avain; }
+  if (SALMI_SARJAT.has(s.id)) return SALMI_SARJAT.get(s.id);
+  const p = salmenKeski(s), mv = valitseMareografi(p), ev = valitseEnnuste(p);
+  const o = { hav: mv ? sarjaMs(mv.kohde.n2000_cm) : [], enn: ev ? sarjaMs(ev.kohde.n2000_cm) : [], asema: mv ? mv.kohde.nimi : null };
+  SALMI_SARJAT.set(s.id, o); return o;
+}
+function salmenJaa(s) {
+  if (s.jaa_cm != null) return { cm: s.jaa_cm, lahde: 'salmen tiedoissa' };
+  const p = salmenKeski(s), raja = Date.now() - 14 * 864e5, lahella = x => x.lat != null && x.t > raja && km(p.lat, p.lon, x.lat, x.lon) <= 5;
+  const m = MITTAUKSET.filter(lahella).sort((a, b) => b.t - a.t)[0];
+  if (m) return { cm: m.jaa_cm, lahde: `mittaus ${pvmKlo(m.t)}` };
+  const r = REIAT.filter(x => x.jaa_cm != null && lahella(x)).sort((a, b) => b.t - a.t)[0];
+  if (r) return { cm: r.jaa_cm, lahde: `reikä ${pvmKlo(r.t)}` };
+  return { cm: 0, lahde: 'ei jäämittausta 5 km säteellä – laskettu ilman jäätä', puuttuu: true };
+}
+/** Virta salmessa hetkellä t: { v (m/s), q, suunta, sisaan, cmH, umpi } tai null. */
+function salmiVirtaAjalla(s, t) {
+  if (!s || !s.a || !s.b) return null;
+  const S = salmiSarjat(s), r = PT.vkNopeusAjalla(S.hav, S.enn, t);
+  const v = PT.salmiVirta(salmiGeom(s), s.syvyys_m, s.osuus, r, salmenJaa(s).cm);
+  return v ? Object.assign(v, { cmH: r }) : null;
+}
+function salmiHuiput(s, alku, loppu) {
+  let sisaan = null, ulos = null;
+  const ajat = [alku]; for (let t = Math.ceil(alku / 3600e3) * 3600e3; t <= loppu; t += 3600e3) if (t > alku) ajat.push(t);
+  for (const t of ajat) {
+    const v = salmiVirtaAjalla(s, t); if (!v || v.umpi) continue;
+    if (v.sisaan && (!sisaan || v.v > sisaan.v)) sisaan = { v: v.v, t };
+    if (!v.sisaan && (!ulos || v.v > ulos.v)) ulos = { v: v.v, t };
+  }
+  return { sisaan, ulos };
+}
+const cmS = v => { const c = v * 100; return fi(c, c < 10 ? 1 : 0) + ' cm/s'; };
+function salmiTeksti(v) {
+  if (!v) return 'ei vedenkorkeusdataa';
+  if (v.umpi) return 'jäässä pohjaan asti';
+  return `${cmS(v.v)} ${v.sisaan ? 'lahteen päin' : 'merelle päin'} (${SUUNTA_MIHIN[ilmansuunta(v.suunta)]})`;
+}
+function aloitaSalmi() {
+  if (NAKYVA !== 'kartta') vaihdaRuutu('kartta');
+  if (!KARTTA) return;
+  suljePaneeli();
+  SALMI_PIIRTO = { a: null, b: null, lahti: [] };
+  KARTTA.vainNapautus = true; KARTTA.salmiLuonnos = SALMI_PIIRTO; KARTTA.seuraa = false;
+  paivitaSalmiTyokalu(); KARTTA.piirra(); paivitaKarttaTila();
+  $('karttakehys').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function lopetaSalmiPiirto() {
+  SALMI_PIIRTO = null;
+  if (KARTTA) { KARTTA.vainNapautus = false; KARTTA.salmiLuonnos = null; KARTTA.piirra(); }
+  const el = $('salmityokalu'); if (el) { el.hidden = true; el.innerHTML = ''; }
+  paivitaKarttaTila();
+}
+function salmiNapautus(lat, lon) {
+  const P = SALMI_PIIRTO, p = [+lat.toFixed(6), +lon.toFixed(6)];
+  if (!P.a) P.a = p; else if (!P.b) P.b = p; else P.lahti.push(p);
+  paivitaSalmiTyokalu(); KARTTA.piirra();
+}
+function paivitaSalmiTyokalu() {
+  const el = $('salmityokalu'), P = SALMI_PIIRTO;
+  if (!P) { el.hidden = true; return; }
+  const ohje = !P.a ? '1/3 Napauta salmen kapeimman kohdan toista rantaa (A).' : !P.b ? '2/3 Napauta vastarantaa (B).'
+    : '3/3 Kierrä lahden ranta B:stä alkaen napautuksin. Lahti sulkeutuu A:han.';
+  let tieto = '';
+  if (P.a && P.b) {
+    const g = PT.salmiGeometria({ a: P.a, b: P.b, lahti: P.lahti.length ? [P.a, P.b].concat(P.lahti) : null });
+    tieto = `Leveys ${fi(g.leveysM)} m` + (P.lahti.length ? ` · lahti ${fi(g.alaKm2, g.alaKm2 < 1 ? 2 : 1)} km²` : '');
+  }
+  el.innerHTML = `<div><b>Mittaa salmi</b> · ${esc(ohje)}${tieto ? ` <span class="tutka">${tieto}</span>` : ''}</div>
+    <div class="rivi"><button class="nappi toissijainen" id="st-peru">↶ Peru</button><button class="nappi toissijainen" id="st-pois">Keskeytä</button>
+    <button class="nappi" id="st-valmis" ${P.a && P.b && P.lahti.length >= 1 ? '' : 'disabled'}>Valmis</button></div>`;
+  el.hidden = false;
+  $('st-peru').onclick = () => { if (P.lahti.length) P.lahti.pop(); else if (P.b) P.b = null; else P.a = null; paivitaSalmiTyokalu(); KARTTA.piirra(); };
+  $('st-pois').onclick = lopetaSalmiPiirto;
+  $('st-valmis').onclick = () => {
+    const uusi = { a: P.a, b: P.b, lahti: P.lahti.slice() };
+    KARTTA.vainNapautus = false; el.hidden = true;
+    avaaSalmiDialogi(uusi, true);
+  };
+}
+function avaaSalmiDialogi(s, uusi) {
+  const el = $('karttapaneeli'), g = salmiGeom(s);
+  const kayrat = KARTTA ? PK.kayratJanalla(KARTTA.syvyys, s.a, s.b) : [];
+  const vihje = !KARTTA || !KARTTA.syvyys.length ? 'Syvyyskäyriä ei ole ladattu tälle alueelle (lähennä ensin).'
+    : kayrat.length ? `Viiva ylittää syvyyskäyrät ${kayrat.map(d => fi(d, d % 1 ? 1 : 0)).join(', ')} m → salmessa on yli ${fi(kayrat[kayrat.length - 1], 1)} m:n kohta (Traficom; sisäsaaristossa karkea).`
+    : 'Viiva ei ylitä yhtään syvyyskäyrää: salmi on todennäköisesti matalampi kuin lähin käyrä (Traficom; sisäsaaristossa karkea).';
+  const nimiOletus = s.nimi || `Salmi ${SALMET.length + 1}`;
+  el.innerHTML = `<b>${uusi ? 'Uusi salmi' : 'Muokkaa salmea'}</b> <span class="pieni hiljainen">leveys ${fi(g.leveysM)} m · lahti ${fi(g.alaKm2, g.alaKm2 < 1 ? 2 : 1)} km²</span>
+    <div class="rivi" style="margin-top:6px"><div><label for="sd-nimi">Nimi</label><input id="sd-nimi" maxlength="30" value="${esc(nimiOletus)}"></div>
+      <div><label for="sd-syv">Keskisyvyys (m)</label><input id="sd-syv" type="number" inputmode="decimal" step="0.1" min="0.2" value="${s.syvyys_m || ''}"></div></div>
+    <p class="pieni hiljainen" style="margin:4px 0">${esc(vihje)} Paras arvo on oma luotaus salmen poikki.</p>
+    <div class="rivi"><div><label for="sd-osuus">Osuus lahden vaihdosta (%)</label><input id="sd-osuus" type="number" inputmode="numeric" min="1" max="100" value="${s.osuus || 100}"></div>
+      <div><label for="sd-jaa">Jää salmessa (cm)</label><input id="sd-jaa" type="number" inputmode="numeric" min="0" placeholder="mittauksesta" value="${s.jaa_cm == null ? '' : s.jaa_cm}"></div></div>
+    <p class="pieni hiljainen" style="margin:4px 0">Osuus alle 100 %, jos lahdella on muitakin aukkoja. Tyhjä jää = lähin oma mittaus tai reikä 5 km säteellä.</p>
+    <div class="rivi"><button class="nappi" id="sd-tallenna">Tallenna</button><button class="nappi toissijainen" id="sd-peruuta">Peruuta</button>
+      ${uusi ? '' : '<button class="nappi vaara" id="sd-poista">Poista</button>'}</div><p class="pieni" id="sd-viesti"></p>`;
+  el.hidden = false;
+  const luku = (id, ehto) => { const v = parseFloat(String($(id).value).replace(',', '.')); return isFinite(v) && ehto(v) ? v : null; };
+  $('sd-tallenna').onclick = () => {
+    const syv = luku('sd-syv', v => v > 0 && v < 60);
+    if (syv == null) { $('sd-viesti').textContent = 'Syötä salmen keskisyvyys metreinä.'; $('sd-syv').focus(); return; }
+    const tiedot = { nimi: $('sd-nimi').value.trim().slice(0, 30) || nimiOletus, syvyys_m: Math.round(syv * 10) / 10,
+      osuus: luku('sd-osuus', v => v > 0 && v <= 100) || 100, jaa_cm: luku('sd-jaa', v => v >= 0 && v < 200) };
+    if (uusi) SALMET.push(Object.assign({ id: Date.now(), t: Date.now(), a: s.a, b: s.b, lahti: s.lahti }, tiedot));
+    else Object.assign(s, tiedot);
+    SALMI_SARJAT.clear(); tallennaSalmet(); lopetaSalmiPiirto(); suljePaneeli();
+    ilmoitus(`Salmi tallennettu: ${tiedot.nimi}`);
+    try { piirraTilanne(konteksti()); korttiKerrokset(); } catch (e) { console.error(e); }
+  };
+  $('sd-peruuta').onclick = () => { if (uusi) lopetaSalmiPiirto(); suljePaneeli(); };
+  if (!uusi) $('sd-poista').onclick = () => {
+    if (!confirm(`Poistetaanko salmi ${s.nimi}?`)) return;
+    SALMET = SALMET.filter(x => x !== s); tallennaSalmet(); suljePaneeli();
+    try { piirraTilanne(konteksti()); } catch (e) { console.error(e); }
+  };
+}
+function naytaSalmi(s) {
+  const el = $('karttapaneeli'), g = salmiGeom(s), t = KARTTA ? KARTTA.aika : Date.now(), v = salmiVirtaAjalla(s, t);
+  const H = salmiHuiput(s, Date.now(), Date.now() + 24 * 3600e3), jaa = salmenJaa(s), S = salmiSarjat(s);
+  el.innerHTML = `<b>≈ ${esc(s.nimi || 'Salmi')}</b> <span class="pieni hiljainen">leveys ${fi(g.leveysM)} m · lahti ${fi(g.alaKm2, g.alaKm2 < 1 ? 2 : 1)} km² · syvyys ${fi(s.syvyys_m, 1)} m${s.osuus && s.osuus < 100 ? ' · osuus ' + fi(s.osuus) + ' %' : ''}</span>
+    <p style="margin:6px 0">${klo(t)}: <b>${esc(salmiTeksti(v))}</b>${v && v.cmH != null ? ` <span class="pieni hiljainen">(vesi ${v.cmH >= 0 ? 'nousee' : 'laskee'} ${fi(Math.abs(v.cmH), 1)} cm/h)</span>` : ''}</p>
+    <p class="pieni" style="margin:4px 0">Seuraavat 24 h: ${H.sisaan ? `suurin lahteen ${cmS(H.sisaan.v)} ${esc(klo(H.sisaan.t))}` : 'ei sisäänvirtausta'} · ${H.ulos ? `suurin merelle ${cmS(H.ulos.v)} ${esc(klo(H.ulos.t))}` : 'ei ulosvirtausta'}</p>
+    <p class="pieni hiljainen" style="margin:4px 0">Jää ${fi(jaa.cm)} cm (${esc(jaa.lahde)}). Vedenkorkeus: ${esc(S.asema || '–')} + FMI:n ennuste.
+      ${tasoMerkki('laskettu')} keskinopeus salmen poikkileikkauksessa; kapeimmassa kohdassa enemmän. Virtapaikoissa jää on heikompaa.</p>
+    <div class="rivi"><button class="nappi toissijainen" id="sa-muokkaa">Muokkaa</button><button class="nappi toissijainen" id="sa-sulje">Sulje</button></div>`;
+  el.hidden = false;
+  $('sa-muokkaa').onclick = () => avaaSalmiDialogi(s, false);
+  $('sa-sulje').onclick = suljePaneeli;
 }
 
 // ---- lähtöbriiffi
@@ -1458,8 +1624,9 @@ function briiffi(c) {
   if (vt.seuraava6 != null) {
     const tu = PT.virtausTulkinta(vt.seuraava6);
     let t = `<b>Virta salmissa</b> seuraavat 6 h: ${tu.suunta}, ${tu.voima} (${fiEtumerkki(vt.seuraava6, 1)} cm/h).`;
-    const s = ASET.salmi, lv = lapaisyLahde(c), sn = salmiNopeus(s, vt.seuraava6, lv ? lv.jaa : 0);
-    if (sn && !sn.umpi) t += ` ${esc(s.nimi || 'Oma salmi')}: noin ${fi(sn.v * 100)} cm/s.`;
+    const omat = SALMET.slice(0, 3).map(s => { const v = salmiVirtaAjalla(s, c.nyt);
+      return v && !v.umpi ? `${esc(s.nimi || 'salmi')} noin ${cmS(v.v)} ${v.sisaan ? 'lahteen' : 'merelle'}` : null; }).filter(Boolean);
+    if (omat.length) t += ' ' + omat.join(', ') + '.';
     lisaa(tu.voima === 'voimakas' || tu.voima === 'erittäin voimakas' ? 'keltainen' : '', t);
   }
   // sää 12 h
@@ -1676,7 +1843,7 @@ function korttiValo(c) {
 // ---- virtaus
 function korttiVirta(c) {
   const el = $('k-virta'); if (!el) return;
-  const vt = virtaTilanne(c), s = ASET.salmi || {}, lv = lapaisyLahde(c);
+  const vt = virtaTilanne(c);
   let h = `<h2>Virtaus</h2>`;
   if (vt.seuraava6 == null && vt.mitattu == null) h += '<p class="hiljainen">Vedenkorkeusdataa ei ole.</p>';
   else {
@@ -1687,14 +1854,18 @@ function korttiVirta(c) {
       (vt.sisaan ? `Voimakkain sisäänvirtaus ${paivaSana(vt.sisaan.t, c.nyt)} ${kloLyhyt(vt.sisaan.t)} (${fiEtumerkki(vt.sisaan.r, 1)} cm/h). ` : '') +
       (vt.ulos ? `Voimakkain ulosvirtaus ${paivaSana(vt.ulos.t, c.nyt)} ${kloLyhyt(vt.ulos.t)} (${fiEtumerkki(vt.ulos.r, 1)} cm/h).` : '') + '</p>';
   }
-  h += `<details ${s.ala_km2 ? 'open' : ''}><summary>Oma salmi: virran nopeus ${tasoMerkki('laskettu')}</summary>
-    <div class="rivi"><div><label for="s-nimi">Nimi</label><input id="s-nimi" maxlength="30" value="${esc(s.nimi || '')}"></div>
-      <div><label for="s-ala">Lahden ala (km²)</label><input id="s-ala" type="number" inputmode="decimal" step="0.1" min="0" value="${s.ala_km2 || ''}"></div></div>
-    <div class="rivi" style="margin-top:6px"><div><label for="s-lev">Salmen leveys (m)</label><input id="s-lev" type="number" inputmode="decimal" min="1" value="${s.leveys_m || ''}"></div>
-      <div><label for="s-syv">Keskisyvyys (m)</label><input id="s-syv" type="number" inputmode="decimal" step="0.1" min="0.1" value="${s.syvyys_m || ''}"></div></div>
-    <div id="s-tulos" class="tulos"></div>
-    <p class="pieni hiljainen">Lahti, jonka vesi vaihtuu vain tämän salmen kautta: virta = lahden ala × vedenkorkeuden muutos ÷ (leveys × (syvyys − jää)).
-      Jää pienentää virtauspoikkileikkausta. Keskiarvo: kapeimmassa ja syvimmässä kohdassa virtaa enemmän. Jos lahdella on useampi aukko, virta jakautuu.</p></details>`;
+  h += `<p class="pieni" style="margin:10px 0 4px"><b>Omat salmet</b> ${tasoMerkki('laskettu')}</p>`;
+  if (SALMET.length) {
+    h += '<table><tr><th style="text-align:left">Salmi</th><th>Nyt</th><th>Suurin 24 h</th></tr>' + SALMET.map(s => {
+      const v = salmiVirtaAjalla(s, c.nyt), H = salmiHuiput(s, c.nyt, c.nyt + 24 * 3600e3);
+      const huippu = [H.sisaan && Object.assign({ sis: true }, H.sisaan), H.ulos && Object.assign({ sis: false }, H.ulos)].filter(Boolean).sort((a, b) => b.v - a.v)[0];
+      return `<tr><td style="text-align:left"><button class="linkki" data-salmi="${s.id}">${esc(s.nimi || 'Salmi')}</button></td><td>${esc(salmiTeksti(v))}</td>
+        <td>${huippu ? `${cmS(huippu.v)} ${huippu.sis ? 'lahteen' : 'merelle'}<br><span class="pieni hiljainen">${esc(klo(huippu.t))}</span>` : '–'}</td></tr>`;
+    }).join('') + '</table>';
+    if (SALMET.some(s => salmenJaa(s).puuttuu && s.jaa_cm == null)) h += '<p class="pieni hiljainen">Osalle salmista ei ole jäämittausta lähellä: laskettu ilman jäätä (virta on todellisuudessa hieman nopeampi).</p>';
+  } else h += '<p class="pieni hiljainen">Ei omia salmia. Mittaa salmi kartalta: leveys kahdella napautuksella ja lahti kiertämällä.</p>';
+  h += `<button class="nappi toissijainen" id="v-salmi-uusi" style="margin-top:6px">≈ Mittaa salmi kartalta</button>
+    <p class="pieni hiljainen">Virta = lahden ala × vedenkorkeuden muutos ÷ (leveys × (syvyys − jää)) × osuus. Keskinopeus; kapeimmassa ja syvimmässä kohdassa virtaa enemmän.</p>`;
   const vp = vesiPisteessa(c.p);
   if (vp && vp.virta) {
     h += `<p class="pieni" style="margin-top:8px"><b>Malli</b> ${tasoMerkki('malli 2 km')}, lähin meriruutu ${fi(vp.virtaKm, 1)} km:</p><table><tr><th>Syvyys</th><th>Nyt</th><th>Suurin 48 h</th></tr>`;
@@ -1709,24 +1880,12 @@ function korttiVirta(c) {
   else if (vp && !vp.virta && VESI && VESI.virta) h += '<p class="pieni hiljainen">Mallin virtausruutua ei ole 8 km säteellä.</p>';
   h += `<p class="pieni">Virtapaikoissa ja salmissa jää on heikompaa kuin ympärillä ${tasoMerkki('lähde')}.</p>`;
   el.innerHTML = h;
-  const laske = () => {
-    const tulos = $('s-tulos'); if (!tulos) return;
-    const r = vt.seuraava6 != null ? vt.seuraava6 : vt.mitattu, huippu = [vt.sisaan, vt.ulos].filter(Boolean).reduce((a, x) => !a || Math.abs(x.r) > Math.abs(a.r) ? x : a, null);
-    const jaa = lv ? lv.jaa : 0, sn = salmiNopeus(ASET.salmi, r, jaa), sh = huippu ? salmiNopeus(ASET.salmi, huippu.r, jaa) : null;
-    if (!ASET.salmi || !ASET.salmi.ala_km2) { tulos.textContent = 'Syötä lahden ala, salmen leveys ja syvyys.'; return; }
-    if (!sn) { tulos.textContent = 'Tiedot puuttuvat tai vedenkorkeusdataa ei ole.'; return; }
-    if (sn.umpi) { tulos.innerHTML = '<b>Salmi on jäässä pohjaan asti</b> (syvyys ≤ jää).'; return; }
-    tulos.innerHTML = `Seuraavat 6 h: <b>noin ${fi(sn.v * 100)} cm/s</b> (${fi(sn.q, 1)} m³/s)` +
-      (sh && !sh.umpi ? `<br>Huippu ${paivaSana(huippu.t, c.nyt)} ${kloLyhyt(huippu.t)}: noin ${fi(sh.v * 100)} cm/s` : '') +
-      `<br><span class="pieni hiljainen">Vesisyvyys jään alla ${fi(sn.vesisyv, 2)} m (jää ${fi(jaa)} cm${lv ? ', ' + esc(lv.lahde) : ', ei mittausta'}).</span>`;
-  };
-  const tallenna = () => {
-    const luku = id => { const v = parseFloat(String($(id).value).replace(',', '.')); return isFinite(v) && v > 0 ? v : null; };
-    ASET.salmi = { nimi: $('s-nimi').value.trim().slice(0, 30), ala_km2: luku('s-ala'), leveys_m: luku('s-lev'), syvyys_m: luku('s-syv') };
-    kirjoitaLS('pilkki_asetukset', ASET); laske();
-  };
-  ['s-nimi', 's-ala', 's-lev', 's-syv'].forEach(id => $(id).onchange = tallenna);
-  laske();
+  $('v-salmi-uusi').onclick = aloitaSalmi;
+  el.querySelectorAll('[data-salmi]').forEach(b => b.onclick = () => {
+    const s = SALMET.find(x => String(x.id) === b.dataset.salmi); if (!s) return;
+    vaihdaRuutu('kartta'); KARTTA.keskita(salmenKeski(s).lat, salmenKeski(s).lon, Math.max(KARTTA.z, 14));
+    KARTTA.valittu = { laji: 'salmi', kohde: s }; naytaSalmi(s); KARTTA.piirra();
+  });
 }
 
 // ---- veden lämpö
@@ -1753,52 +1912,88 @@ function piirraTilanne(c) {
 }
 
 // ---- karttakerrokset
-function kerrosPaalla() { const k = ASET.kerrokset || {}; return !!(k.jaa || k.virta || k.tuuli); }
+let ANIM = null;
+const VAYLA_TILA = new Map();
+const KERROS_NIMET = [['jaa', 'Jää'], ['pohja', 'Pohja °C'], ['virta', 'Virta'], ['tuuli', 'Tuuli'], ['vaylat', 'Väylät']];
+function kerrosPaalla() { const k = ASET.kerrokset || {}; return !!(k.jaa || k.pohja || k.virta || k.tuuli); }   // aikariippuvat
 function kerrosAika() { const t = Date.now() + KERROS.tunnit * 3600e3; return Math.round(t / 3600e3) * 3600e3; }
 function sidoKerrokset() {
   if (!KARTTA) return;
   KARTTA.kerrokset = ASET.kerrokset; KARTTA.virtaTaso = ASET.virtaTaso || 0; KARTTA.aika = kerrosAika();
   KARTTA.jaaMalli = DATA && DATA.jaa_malli; KARTTA.jaaKartta = DATA && DATA.jaakartta;
   KARTTA.saa = DATA && DATA.saa ? DATA.saa.filter(x => x.ajat) : null; KARTTA.vesi = VESI;
+  KARTTA.salmet = SALMET; KARTTA.salmiVirtaFn = s => salmiVirtaAjalla(s, KARTTA.aika);
+}
+function paivitaAnimaatio() {
+  if (!ANIM) return;
+  const paalla = KARTTA && NAKYVA === 'kartta' && ASET.kerrokset.virta && ASET.virtaviivat && VESI && VESI.virta && document.visibilityState === 'visible';
+  if (paalla) ANIM.kaynnista(); else ANIM.pysayta();
+}
+function lataaVaylat() {
+  if (!KARTTA || !DATA || !DATA.vaylat_alueet || !ASET.kerrokset.vaylat || KARTTA.z < 9) return;
+  const A = KARTTA.nakyvaAlue();
+  for (const s of DATA.vaylat_alueet) {
+    if (!s || !s.polku || !s.alue || VAYLA_TILA.has(s.nimi)) continue;
+    const a = s.alue;
+    if (a.lat_max < A.lat_min || a.lat_min > A.lat_max || a.lon_max < A.lon_min || a.lon_min > A.lon_max) continue;
+    VAYLA_TILA.set(s.nimi, 'lataa');
+    fetch(s.polku + '?l=' + encodeURIComponent(s.luotu || '')).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))).then(j => {
+      const V = PK.puraVaylat(j); if (!V) throw new Error('tuntematon muoto');
+      KARTTA.vaylat.push(V); VAYLA_TILA.set(s.nimi, 'ok'); KARTTA.piirra(); paivitaKarttaTila();
+    }).catch(() => { VAYLA_TILA.set(s.nimi, 'virhe'); paivitaKarttaTila(); setTimeout(() => VAYLA_TILA.delete(s.nimi), 60000); });
+  }
+  paivitaKarttaTila();
 }
 function korttiKerrokset() {
   const el = $('k-kerrokset'); if (!el) return;
   const k = ASET.kerrokset, V = VESI && VESI.virta;
-  let h = `<div class="valitsin">${[['jaa', 'Jää'], ['virta', 'Virta'], ['tuuli', 'Tuuli']].map(([a, t]) =>
-    `<button data-kerros="${a}" class="${k[a] ? 'valittu' : ''}">${t}</button>`).join('')}</div>`;
-  if (k.virta && V) h += `<div class="valitsin">${V.tasot_m.map((s, i) => `<button data-taso="${i}" class="${(ASET.virtaTaso || 0) === i ? 'valittu' : ''}">${i === 0 ? 'Pinta' : 'Syvempi'} ${fi(s, 1)} m</button>`).join('')}</div>`;
-  if (kerrosPaalla()) {
+  let h = `<div class="valitsin">${KERROS_NIMET.map(([a, t]) => `<button data-kerros="${a}" class="${k[a] ? 'valittu' : ''}">${t}</button>`).join('')}</div>`;
+  if (k.virta && V) h += `<div class="valitsin">${V.tasot_m.map((s, i) => `<button data-taso="${i}" class="${(ASET.virtaTaso || 0) === i ? 'valittu' : ''}">${i === 0 ? 'Pinta' : 'Syvempi'} ${fi(s, 1)} m</button>`).join('')}
+    <button data-viivat="1" class="${ASET.virtaviivat ? 'valittu' : ''}">Virtaviivat</button></div>`;
+  if (kerrosPaalla() || SALMET.length) {
     h += `<div class="rivi" style="align-items:center"><input type="range" id="kerros-aika" min="0" max="48" step="3" value="${KERROS.tunnit}" aria-label="Aika">
       <span id="kerros-aika-teksti" style="flex:0 0 auto;min-width:118px;text-align:right" class="pieni"></span></div>`;
-    const sel = [];
-    if (k.jaa) sel.push(PK.JAA_SELITE.map(([t, v]) => `<span style="--c:${v}">${t}</span>`).join(''));
-    if (k.virta) sel.push('<span style="--c:#4fd3ff">virta &lt; 5 cm/s</span><span style="--c:#ffc928">5–10</span><span style="--c:#ff4081">&gt; 10</span>');
-    if (k.tuuli) sel.push('<span style="--c:#ffffff">tuuli: nuoli = mihin puhaltaa, keski/puuska</span>');
-    h += `<div class="selite">${sel.join('')}</div><p class="pieni hiljainen" id="kerros-lahde"></p>
-      <p class="pieni hiljainen">Napauta karttaa tyhjästä kohdasta: kohdan malliarvot. Mallit 2 km – eivät näe kapeita salmia. Ei navigointiin.</p>`;
   }
+  const sel = [];
+  if (k.jaa) sel.push(PK.JAA_SELITE.map(([t, v]) => `<span style="--c:${v}">${t}</span>`).join(''));
+  if (k.pohja) sel.push([0, 1, 2, 3, 4, 5].map(t => `<span style="--c:${PK.lampoVari(t, 0.95)}">${t}${t === 5 ? '+' : ''} °C</span>`).join('') + '<span>pohja, vrk-keskiarvo</span>');
+  if (k.virta) sel.push('<span style="--c:#4fd3ff">virta &lt; 5 cm/s</span><span style="--c:#ffc928">5–10</span><span style="--c:#ff4081">&gt; 10</span>');
+  if (k.tuuli) sel.push('<span style="--c:#ffffff">tuuli: nuoli = mihin puhaltaa, keski/puuska</span>');
+  if (k.vaylat) sel.push('<span style="--c:#ffd166">väylä, luku = mitoitussyväys</span><span>merimerkit, kun näkymä on alle 5,5 km leveä</span>');
+  if (SALMET.length) sel.push('<span style="--c:#4fd3ff">salmi &lt; 5 cm/s</span><span style="--c:#ffc928">5–15</span><span style="--c:#ff4081">&gt; 15</span>');
+  if (sel.length) h += `<div class="selite">${sel.join('')}</div>`;
+  h += '<p class="pieni hiljainen" id="kerros-lahde"></p>';
+  if (kerrosPaalla()) h += '<p class="pieni hiljainen">Napauta karttaa tyhjästä kohdasta: kohdan malliarvot. Mallit 2 km – eivät näe kapeita salmia. Ei navigointiin.</p>';
+  if (k.virta && ASET.virtaviivat) h += '<p class="pieni hiljainen">Virtaviivat havainnollistavat mallin virtausta: liike on liioiteltu (noin 4 px/s per cm/s).</p>';
   el.innerHTML = h;
   el.querySelectorAll('[data-kerros]').forEach(b => b.onclick = () => {
-    ASET.kerrokset[b.dataset.kerros] = !ASET.kerrokset[b.dataset.kerros]; kirjoitaLS('pilkki_asetukset', ASET);
-    if (b.dataset.kerros === 'virta' && ASET.kerrokset.virta) lataaVesi();
-    korttiKerrokset(); sidoKerrokset(); if (KARTTA) KARTTA.piirra(); paivitaKarttaTila();
+    const a = b.dataset.kerros; ASET.kerrokset[a] = !ASET.kerrokset[a];
+    if (ASET.kerrokset[a] && a === 'jaa') ASET.kerrokset.pohja = false;      // täytöt eivät päällekkäin
+    if (ASET.kerrokset[a] && a === 'pohja') ASET.kerrokset.jaa = false;
+    kirjoitaLS('pilkki_asetukset', ASET);
+    if ((a === 'virta' || a === 'pohja') && ASET.kerrokset[a]) lataaVesi();
+    if (a === 'vaylat') lataaVaylat();
+    korttiKerrokset(); sidoKerrokset(); if (KARTTA) KARTTA.piirra(); paivitaKarttaTila(); paivitaAnimaatio();
   });
   el.querySelectorAll('[data-taso]').forEach(b => b.onclick = () => {
     ASET.virtaTaso = +b.dataset.taso; kirjoitaLS('pilkki_asetukset', ASET); korttiKerrokset(); sidoKerrokset(); if (KARTTA) KARTTA.piirra();
   });
+  el.querySelectorAll('[data-viivat]').forEach(b => b.onclick = () => {
+    ASET.virtaviivat = !ASET.virtaviivat; kirjoitaLS('pilkki_asetukset', ASET); korttiKerrokset(); paivitaAnimaatio();
+  });
+  const teksti = () => {
+    const at = $('kerros-aika-teksti'); if (at) at.textContent = (KERROS.tunnit ? '+' + KERROS.tunnit + ' h · ' : 'nyt · ') + klo(kerrosAika());
+    const osat = [];
+    if (k.jaa && KARTTA) { const l = KARTTA.jaaLahde(); osat.push(l === 'kartta' ? `jää: jääkartta ${DATA.jaakartta.aika}` : l === 'malli' ? 'jää: Copernicus-malli (vrk)' : 'jäädataa ei ole'); }
+    if (k.pohja) osat.push(VESI && VESI.lampo && VESI.lampo.pohja ? 'pohja: Copernicus-malli (vrk)' : VESI_TILA === 'lataa' ? 'pohja: ladataan…' : 'pohjan lämpöä ei ole');
+    if (k.virta) osat.push(V ? 'virta: malli, 3 h välein' : VESI_TILA === 'lataa' ? 'virta: ladataan…' : 'virtausdataa ei ole');
+    if (k.tuuli) osat.push('tuuli: HARMONIE-pisteet');
+    if (k.vaylat) osat.push('väylät: Väylävirasto');
+    const e = $('kerros-lahde'); if (e) e.textContent = osat.join(' · ');
+  };
   const r = $('kerros-aika');
-  if (r) {
-    const teksti = () => {
-      $('kerros-aika-teksti').textContent = (KERROS.tunnit ? '+' + KERROS.tunnit + ' h · ' : 'nyt · ') + klo(kerrosAika());
-      const osat = [];
-      if (k.jaa && KARTTA) { const l = KARTTA.jaaLahde(); osat.push(l === 'kartta' ? `jää: jääkartta ${DATA.jaakartta.aika}` : l === 'malli' ? 'jää: Copernicus-malli (vrk)' : 'jäädataa ei ole'); }
-      if (k.virta) osat.push(V ? 'virta: malli, 3 h välein' : VESI_TILA === 'lataa' ? 'virta: ladataan…' : 'virtausdataa ei ole');
-      if (k.tuuli) osat.push('tuuli: HARMONIE-pisteet');
-      const e = $('kerros-lahde'); if (e) e.textContent = osat.join(' · ');
-    };
-    r.oninput = () => { KERROS.tunnit = +r.value; sidoKerrokset(); teksti(); if (KARTTA) KARTTA.piirra(); paivitaKarttaTila(); };
-    teksti();
-  }
+  if (r) r.oninput = () => { KERROS.tunnit = +r.value; sidoKerrokset(); teksti(); if (KARTTA) KARTTA.piirra(); paivitaKarttaTila(); };
+  teksti();
 }
 function naytaMalliArvot(lat, lon) {
   const el = $('karttapaneeli'), p = { lat, lon }, t = kerrosAika();
@@ -1826,6 +2021,11 @@ function naytaMalliArvot(lat, lon) {
     const i = vp.ajat.indexOf(paivaAvain(t));
     if (i >= 0) rivit.push(`Vesi ${esc(vp.ajat[i])}: pinta ${fi(vp.pinta ? vp.pinta[i] : null, 1)} °C, pohja ${fi(vp.pohja ? vp.pohja[i] : null, 1)} °C`);
   } else if (ASET.kerrokset.virta && VESI_TILA === 'lataa') rivit.push('<span class="hiljainen">Ladataan virtausta ja lämpöä…</span>');
+  if (KARTTA && KARTTA.vaylat.length) {
+    const lv = PK.lahinVayla(KARTTA.vaylat, lat, lon, 1500);
+    if (lv) rivit.push(`Lähin väylä ${fi(lv.m)} m${lv.syvyys != null ? ', mitoitussyväys ' + fi(lv.syvyys, 1) + ' m' : ''}` +
+      (lv.syvyys >= 5 ? ' – <b>laivaväylä: talvella jää voi olla rikottu ja railoilla</b>' : ''));
+  }
   const sv = valitseSaa(p);
   if (sv) {
     const i = sv.kohde.ajat.map(aikaMs).reduce((b, tt, k, a) => Math.abs(tt - t) < Math.abs(a[b] - t) ? k : b, 0);
@@ -1861,7 +2061,8 @@ function vaihdaRuutu(nimi) {
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'ruutu-' + nimi);
   window.scrollTo(0, 0);
   if (nimi === 'kartta') avaaKartta();
-  gpsSeuranta();
+  else if (SALMI_PIIRTO) lopetaSalmiPiirto();
+  gpsSeuranta(); paivitaAnimaatio();
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaihdaRuutu(b.dataset.ruutu));
 
@@ -1877,7 +2078,7 @@ asetaTeema();
   gpsSeuranta(); nayttoLukko(); paivitaJalkiTila();
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
     navigator.serviceWorker.register('sw.js').catch(() => {});
-  setInterval(async () => { if (document.visibilityState === 'visible') { await lataaData(); piirra(); lataaSyvyydet(); lataaVesi(); } }, 30 * 60e3);
+  setInterval(async () => { if (document.visibilityState === 'visible') { await lataaData(); piirra(); lataaSyvyydet(); lataaVaylat(); lataaVesi(); } }, 30 * 60e3);
   setInterval(() => { if (document.visibilityState === 'visible' && NAKYVA === 'tilanne' && !PUHE_KAYNNISSA && !document.activeElement.matches('input')) piirraTilanne(konteksti()); }, 5 * 60e3);
   setInterval(() => { if (KARTTA && NAKYVA === 'kartta') { KARTTA.piirra(); korttiReika(); } }, 60e3);   // haalistuminen ja reiän aika
 })();

@@ -34,8 +34,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v003"
-UA = "pilkkitutka/v003 (+https://lohirosvo.github.io/pilkkitutka/)"
+VERSIO = "v004"
+UA = "pilkkitutka/v004 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
 # Alue Kaskinen–Mikkelinsaaret [O: rajaus väljä, kattaa Kaskisen 62,33 ja Mikkelinsaarten 63,46]
@@ -595,6 +595,30 @@ def hae_syvyydet(data_kansio):
     return tulos
 
 
+def hae_vaylat_alueet(data_kansio):
+    """Väyläviraston väylät ja turvalaitteet (merilohitutkan hae_vaylat.py) samoille osa-alueille kuin syvyyskäyrät.
+    Alle 30 vrk vanha julkaistu tiedosto käytetään sellaisenaan."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import hae_vaylat
+    tulos = []
+    for a in SYVYYS_ALUEET:
+        kansio = os.path.join(data_kansio, "vaylat", a["nimi"])
+        os.makedirs(kansio, exist_ok=True)
+        print(f"  {a['nimi']} ({a['otsikko']})")
+        tila = hae_vaylat.paivita(kansio, f"{SIVU}data/vaylat/{a['nimi']}/", loki=lambda s: print("    " + str(s)), alue=a["alue"])
+        rivi = dict(a, polku=f"data/vaylat/{a['nimi']}/vaylat.json", **(tila or {}))
+        polku = os.path.join(kansio, "vaylat.json")
+        if os.path.exists(polku):
+            rivi["kt"] = round(os.path.getsize(polku) / 1024)
+        else:
+            rivi["polku"] = None
+        tulos.append(rivi)
+    if not any(r.get("tila") in ("ok", "vanha") for r in tulos):
+        raise RuntimeError("yhdenkään osa-alueen väylät eivät onnistuneet: "
+                           + " | ".join(str(r.get("viesti", "")) for r in tulos)[:400])
+    return tulos
+
+
 # ---------------------------------------------------------------- 7. tilasto
 
 def kaudet(nyt, ensimmainen=2011):
@@ -697,6 +721,8 @@ def main(argv=None):
     data["jaakartta"] = vaihe("jaakartta", lambda: hae_jaakartta(nyt), ed.get("jaakartta"))
     data["syvyys_alueet"] = vaihe("syvyys", lambda: hae_syvyydet(os.path.dirname(os.path.abspath(args.ulos))),
                                   ed.get("syvyys_alueet"))
+    data["vaylat_alueet"] = vaihe("vaylat", lambda: hae_vaylat_alueet(os.path.dirname(os.path.abspath(args.ulos))),
+                                  ed.get("vaylat_alueet"))
     # epäonnistuessa työnkulku on jo kopioinut edellisen vesi.json:n paikalleen -> viittaus edelliseen
     data["vesi"] = vaihe("vesi", lambda: hae_vesi(nyt, os.path.dirname(os.path.abspath(args.ulos))), ed.get("vesi"))
     if args.tilasto:

@@ -1,4 +1,5 @@
-/* Pilkkitutka – tilanne.js v004 (23.11.2026)
+/* Pilkkitutka – tilanne.js v005 (23.11.2026)
+ * v005: omat salmet – leveys, lahden ala, suunta lahteen ja virran nopeus jatkuvuusyhtälöstä; virtauskentän interpolointi.
  * Puhtaat laskentafunktiot tilannekuvaan (testattavissa Nodessa):
  *  - auringon korkeus ja hämärät [L: USNO:n likikaava, tarkkuus noin 0,5°]
  *  - valo jään alla [L + O: kertoimet valittu mitattujen vaihteluvälien sisältä, ks. VALO]
@@ -114,7 +115,70 @@
     return { nopeus, suunta, ilmansuunta: SUUNNAT[Math.round(suunta / 45) % 8] };
   }
 
-  const PilkkiTilanne = { auringonKorkeus, aurinkoTapahtumat, valoluokka, hamarat, VALO, lapaisy, interpoloi, vkMuutos,
+  // ------------------------------------------------------------ omat salmet [L]
+  const KX = lat => 111320 * Math.cos(lat * RAD), KY = 110574;
+  function etaisyysM(a, b) { const la = (a[0] + b[0]) / 2; return Math.hypot((b[1] - a[1]) * KX(la), (b[0] - a[0]) * KY); }
+  /** Monikulmion ala km² (paikallinen tasoprojektio; lahden kokoisilla alueilla virhe < 0,1 %). */
+  function alaKm2(pisteet) {
+    if (!pisteet || pisteet.length < 3) return 0;
+    const la0 = pisteet.reduce((s, p) => s + p[0], 0) / pisteet.length, kx = KX(la0);
+    let s2 = 0;
+    for (let i = 0; i < pisteet.length; i++) {
+      const p = pisteet[i], q = pisteet[(i + 1) % pisteet.length];
+      s2 += (p[1] * kx) * (q[0] * KY) - (q[1] * kx) * (p[0] * KY);
+    }
+    return Math.abs(s2) / 2 / 1e6;
+  }
+  /** Salmi { a, b, lahti } -> { leveysM, alaKm2, keski, sisaanSuunta (astetta, kohti lahtea) }. */
+  function salmiGeometria(s) {
+    if (!s || !s.a || !s.b) return null;
+    const keski = [(s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2], kx = KX(keski[0]);
+    const dx = (s.b[1] - s.a[1]) * kx, dy = (s.b[0] - s.a[0]) * KY;
+    let nx = -dy, ny = dx;                                         // normaali
+    const L = s.lahti && s.lahti.length >= 3 ? s.lahti : null;
+    if (L) {
+      const c = [L.reduce((t, p) => t + p[0], 0) / L.length, L.reduce((t, p) => t + p[1], 0) / L.length];
+      if (nx * (c[1] - keski[1]) * kx + ny * (c[0] - keski[0]) * KY < 0) { nx = -nx; ny = -ny; }
+    }
+    return { leveysM: Math.hypot(dx, dy), alaKm2: L ? alaKm2(L) : 0, keski, sisaanSuunta: (Math.atan2(nx, ny) / RAD + 360) % 360 };
+  }
+  /** Virta salmessa: v = ala × dh/dt × osuus ÷ (leveys × (syvyys − jää)). cmH > 0 = vesi nousee = virtaa lahteen. */
+  function salmiVirta(geom, syvyysM, osuusPct, cmH, jaaCm) {
+    if (!geom || !(geom.leveysM > 0) || !(geom.alaKm2 > 0) || !(syvyysM > 0) || cmH == null || !isFinite(cmH)) return null;
+    const vesisyv = syvyysM - Math.max(0, jaaCm || 0) / 100;
+    if (vesisyv <= 0.05) return { umpi: true, vesisyv };
+    const osuus = osuusPct > 0 ? Math.min(100, osuusPct) / 100 : 1;
+    const q = geom.alaKm2 * 1e6 * Math.abs(cmH) / 100 / 3600 * osuus;
+    return { q, v: q / (geom.leveysM * vesisyv), vesisyv, sisaan: cmH > 0,
+      suunta: cmH > 0 ? geom.sisaanSuunta : (geom.sisaanSuunta + 180) % 360 };
+  }
+  /** Vedenkorkeuden muutosnopeus cm/h hetkellä t: mitattu ennen viimeistä mittausta, sen jälkeen ennuste. */
+  function vkNopeusAjalla(hav, enn, t) {
+    const viim = hav && hav.length ? hav[hav.length - 1][0] : -Infinity;
+    const sarja = t <= viim ? hav : enn;
+    if (!sarja || !sarja.length) return null;
+    const a = interpoloi(sarja, t - 1.5 * 3600e3), b = interpoloi(sarja, t + 1.5 * 3600e3);
+    if (a != null && b != null) return (b - a) / 3;
+    const f = vkMuutos(sarja, t, 3); if (f != null) return f;
+    return vkMuutos(sarja, t - 3 * 3600e3, 3);
+  }
+
+  // ------------------------------------------------------------ virtauskentän arvo pisteessä (bilineaarinen)
+  /** lat/lon tasavälisinä nousevina tai laskevina; U, W [y][x] cm/s; null jos jokin kulma puuttuu. */
+  function kenttaArvo(lat, lon, U, W, la, lo) {
+    const n = lat.length, m = lon.length; if (n < 2 || m < 2) return null;
+    const fy = (la - lat[0]) / (lat[n - 1] - lat[0]) * (n - 1), fx = (lo - lon[0]) / (lon[m - 1] - lon[0]) * (m - 1);
+    if (!(fy >= 0 && fy <= n - 1 && fx >= 0 && fx <= m - 1)) return null;
+    const y0 = Math.min(n - 2, Math.floor(fy)), x0 = Math.min(m - 2, Math.floor(fx)), ty = fy - y0, tx = fx - x0;
+    const k = (A, y, x) => A[y] && A[y][x] != null ? A[y][x] : null;
+    const u00 = k(U, y0, x0), u01 = k(U, y0, x0 + 1), u10 = k(U, y0 + 1, x0), u11 = k(U, y0 + 1, x0 + 1);
+    const v00 = k(W, y0, x0), v01 = k(W, y0, x0 + 1), v10 = k(W, y0 + 1, x0), v11 = k(W, y0 + 1, x0 + 1);
+    if ([u00, u01, u10, u11, v00, v01, v10, v11].some(x => x == null)) return null;
+    const bl = (a, b, c, d) => (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+    return [bl(u00, u01, u10, u11), bl(v00, v01, v10, v11)];
+  }
+
+  const PilkkiTilanne = { etaisyysM, alaKm2, salmiGeometria, salmiVirta, vkNopeusAjalla, kenttaArvo, auringonKorkeus, aurinkoTapahtumat, valoluokka, hamarat, VALO, lapaisy, interpoloi, vkMuutos,
     virtausTulkinta, lahinRuutu, virtausVektori, SUUNNAT };
   if (typeof module !== 'undefined' && module.exports) module.exports = PilkkiTilanne;
   else root.PilkkiTilanne = PilkkiTilanne;
