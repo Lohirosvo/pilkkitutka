@@ -1,4 +1,4 @@
-# Pilkkitutka – hakuajo ja julkaisu GitHub Pagesiin (v001, 23.11.2026)
+# Pilkkitutka – hakuajo ja julkaisu GitHub Pagesiin (v002, 23.11.2026)
 # Toimenpideversiot samat kuin merilohitutkan toimivassa ajossa 22.11.2026.
 name: Pilkkitutka
 
@@ -17,6 +17,8 @@ on:
       - "index.html"
       - "sw.js"
       - "hae_pilkki.py"
+      - "hae_syvyys.py"
+      - "kartta.js"
       - ".github/workflows/pilkkitutka.yml"
 
 permissions:
@@ -45,7 +47,7 @@ jobs:
       - name: Kokoa sivusto ja ota edellinen data talteen
         run: |
           mkdir -p _site/data
-          cp index.html sw.js _site/
+          cp *.html *.js _site/
           touch _site/.nojekyll
           curl -sfL "https://lohirosvo.github.io/pilkkitutka/data/pilkki.json" \
             -o _site/data/pilkki_ed.json || echo "Ei aiempaa dataa"
