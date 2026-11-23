@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d3b52">
+<title>Pilkkitutka</title>
+<style>
+  :root {
+    --tausta: #eef3f6; --kortti: #ffffff; --teksti: #0f1d26; --hiljainen: #5a6b77;
+    --pää: #0d3b52; --raja: #d5dee5;
+    --punainen: #b3261e; --punainen-t: #fde8e6; --keltainen: #8a5a00; --keltainen-t: #fff3d6;
+    --info: #2c5d7c; --info-t: #e6f0f6; --vesi: #1f6fb2; --ennuste: #7a4fb5; --leiri: #b3261e; --il: #c28a00;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--tausta); color: var(--teksti);
+    font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--pää); color: #fff; padding: 10px 14px calc(10px) 14px;
+    padding-top: calc(10px + env(safe-area-inset-top)); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; }
+  header .tila { font-size: 14px; opacity: .9; }
+  nav { display: flex; background: var(--pää); position: sticky; top: 0; z-index: 5; }
+  nav button { flex: 1; background: none; border: 0; color: #cfe0ea; font: inherit; font-weight: 600;
+    padding: 12px 4px; border-bottom: 4px solid transparent; min-height: 52px; }
+  nav button.valittu { color: #fff; border-bottom-color: #ffd34d; }
+  main { padding: 10px 10px 40px; max-width: 720px; margin: 0 auto; }
+  .kortti { background: var(--kortti); border-radius: 12px; padding: 12px 14px; margin: 0 0 10px;
+    border: 1px solid var(--raja); }
+  .kortti h2 { font-size: 17px; margin: 0 0 8px; color: var(--pää); }
+  .hiljainen { color: var(--hiljainen); }
+  .pieni { font-size: 14px; }
+  .iso { font-size: 26px; font-weight: 700; }
+  .rivi { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .rivi > * { flex: 1 1 140px; }
+  label { display: block; font-size: 14px; color: var(--hiljainen); margin-bottom: 2px; }
+  input, select { font: inherit; width: 100%; padding: 10px; border: 1px solid #9fb2bf; border-radius: 8px;
+    min-height: 50px; background: #fff; color: var(--teksti); }
+  input[type=checkbox] { width: 28px; min-height: 28px; height: 28px; }
+  button.nappi { font: inherit; font-weight: 700; min-height: 54px; border-radius: 10px; border: 0;
+    background: var(--pää); color: #fff; padding: 10px 16px; width: 100%; }
+  button.nappi.toissijainen { background: #dfe8ee; color: var(--pää); }
+  .varoitus { border-radius: 10px; padding: 10px 12px; margin: 0 0 8px; border-left: 8px solid; }
+  .varoitus.punainen { background: var(--punainen-t); border-color: var(--punainen); }
+  .varoitus.keltainen { background: var(--keltainen-t); border-color: var(--keltainen); }
+  .varoitus.info { background: var(--info-t); border-color: var(--info); }
+  .varoitus.tyhja { background: #eef5ee; border-color: #4d7d4d; }
+  .varoitus b { display: block; }
+  .peruste { display: inline-block; font-size: 12px; margin-top: 4px; padding: 1px 7px; border-radius: 9px;
+    background: rgba(0,0,0,.07); color: #333; }
+  .taso { font-size: 12px; padding: 1px 6px; border-radius: 8px; background: #e7edf1; color: #3b4d59; white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { padding: 6px 4px; border-bottom: 1px solid var(--raja); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .tulos { padding: 10px 12px; border-radius: 10px; background: #f1f5f8; margin-top: 8px; }
+  .tulos.yli { background: var(--keltainen-t); }
+  svg { width: 100%; height: auto; display: block; }
+  .selite { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--hiljainen); margin-top: 4px; }
+  .selite span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 5px;
+    vertical-align: middle; background: var(--c); }
+  details summary { cursor: pointer; color: var(--pää); font-weight: 600; min-height: 32px; }
+  .nuoli { display: inline-block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pilkkitutka</h1>
+  <span class="tila" id="otsikkotila">ladataan…</span>
+</header>
+<nav>
+  <button data-ruutu="jaaturva" class="valittu">Jääturva</button>
+  <button data-ruutu="jaalla">Jäällä</button>
+  <button data-ruutu="raportit">Raportit</button>
+</nav>
+<main>
+  <section id="ruutu-jaaturva">
+    <div class="kortti" id="k-paikka"></div>
+    <div class="kortti" id="k-varoitukset"></div>
+    <div class="kortti" id="k-mittaus"></div>
+    <div class="kortti" id="k-vedenkorkeus"></div>
+    <div class="kortti" id="k-jaa"></div>
+    <div class="kortti" id="k-kasvu"></div>
+    <div class="kortti" id="k-saa"></div>
+    <div class="kortti" id="k-tilasto"></div>
+    <div class="kortti pieni" id="k-lahteet"></div>
+  </section>
+  <section id="ruutu-jaalla" hidden>
+    <div class="kortti">
+      <h2>Jäällä</h2>
+      <p>Reikäloki ja Kala kiinni tulevat vaiheessa 3. Jään ja lumen mittaus on jo Jääturva-ruudussa.</p>
+    </div>
+  </section>
+  <section id="ruutu-raportit" hidden>
+    <div class="kortti" id="k-mittaukset"></div>
+  </section>
+</main>
+
+<script>
+'use strict';
+/* Pilkkitutka v001 (23.11.2026) – jääturva.
+   Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
+
+const VERSIO = 'v001';
+const DATA_URL = 'data/pilkki.json';
+
+// --- vakiot
+const RHO_VESI = 1004;                 // kg/m³, murtovesi ~5 ‰ 0 °C:ssa [O]
+const RHO_JAA = 910;                   // kg/m³, Itämeren jää [O]
+const LUMI = {                         // lumen tiheys [O]; Makkonen (VTT): vaihtelu 70–910 kg/m³ [T]
+  kevyt: { nimi: 'kevyt pakkaslumi', rho: 150 },
+  tiivis: { nimi: 'tiivistynyt', rho: 300 },
+  marka: { nimi: 'märkä / vanha', rho: 400 },
+};
+const A_YLARAJA = 3.5;                 // cm/√(°C·vrk), Stefanin laki ilman lunta [L]
+const T_JAATYMIS = -0.3;               // °C, murtoveden jäätymispiste ~5 ‰ [L]
+const IL_KELTAINEN_TEOR_CM = { Vaasa: 85 }; // IL:n keltainen korkean veden raja teor. keskivedestä [T]
+const RAJAT = {                        // varoitusrajat – kaikki [O], säädetään kokemuksen mukaan
+  vk_muutos_cm_12h: 20,
+  leiri_lahestyy_cm: 15,
+  puuska_ms: 15,
+  keskituuli_ms: 10,
+  suoja_tunteja_48h: 12,
+  malli_peitto_min_pct: 80,
+  data_vanha_h: 12,
+};
+const VARAPISTEET = [                  // jos dataa ei ole, paikat silti valittavissa
+  { nimi: 'Kaskinen', lat: 62.3333, lon: 21.2167 },
+  { nimi: 'Åminne', lat: 62.972, lon: 21.488 },
+  { nimi: 'Vaasa (Vaskiluoto)', lat: 63.0815, lon: 21.5712 },
+  { nimi: 'Raippaluoto', lat: 63.23, lon: 21.40 },
+  { nimi: 'Mikkelinsaaret', lat: 63.46, lon: 21.775 },
+];
+const VARI = { vesi: '#1f6fb2', ennuste: '#7a4fb5', leiri: '#b3261e', il: '#c28a00' }; // SVG-värit
+const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 } };
+
+// --- tila
+const $ = id => document.getElementById(id);
+function lueLS(k, oletus) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : oletus; } catch (e) { return oletus; } }
+function kirjoitaLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+const ASET = Object.assign({}, OLETUS, lueLS('pilkki_asetukset', {}));
+ASET.leiri = Object.assign({}, OLETUS.leiri, ASET.leiri || {});
+let MITTAUKSET = lueLS('pilkki_mittaukset', []);
+let DATA = null, DATA_LAHDE = '', SIJ = null, GPS_VIRHE = '';
+
+// --- muotoilu
+const fi = (x, d = 0) => (x == null || !isFinite(x)) ? '–' : x.toFixed(d).replace('.', ',').replace('-', '−');
+const fiEtumerkki = (x, d = 0) => (x == null || !isFinite(x)) ? '–' : (x > 0 ? '+' : '') + fi(x, d);
+const aikaFi = (ms, o) => new Date(ms).toLocaleString('fi-FI', Object.assign({ timeZone: 'Europe/Helsinki' }, o));
+const klo = ms => aikaFi(ms, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const pvmKlo = ms => aikaFi(ms, { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+const paivaAvain = ms => new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Europe/Helsinki' }); // YYYY-MM-DD
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const tasoMerkki = t => `<span class="taso">${esc(t)}</span>`;
+function km(lat1, lon1, lat2, lon2) {
+  const r = 6371, p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+  const dp = p2 - p1, dl = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * r * Math.asin(Math.sqrt(a));
+}
+const SUUNNAT = ['P', 'KO', 'I', 'KA', 'E', 'LO', 'L', 'LU'];
+const ilmansuunta = d => d == null ? '–' : SUUNNAT[Math.round(((d % 360) + 360) % 360 / 45) % 8];
+
+// --- datan apuja
+const aikaMs = s => Date.parse(s);
+const sarjaMs = s => (s || []).filter(p => p && p[1] != null).map(p => [aikaMs(p[0]), p[1]]);
+function lahin(lista, lat, lon, latK = 'lat', lonK = 'lon') {
+  let paras = null;
+  for (const k of lista || []) {
+    if (k == null || k[latK] == null) continue;
+    const d = km(lat, lon, k[latK], k[lonK]);
+    if (!paras || d < paras.km) paras = { kohde: k, km: d };
+  }
+  return paras;
+}
+function arvoAjalla(sarja, t, toleranssiMs = 90 * 60e3) {
+  let paras = null;
+  for (const [tt, v] of sarja) { const d = Math.abs(tt - t); if (d <= toleranssiMs && (!paras || d < paras.d)) paras = { d, v }; }
+  return paras ? paras.v : null;
+}
+function pisteet() { return (DATA && DATA.pisteet) || VARAPISTEET; }
+
+// --- data
+async function lataaData() {
+  let teksti = null;
+  try {
+    const r = await fetch(DATA_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    teksti = await r.text();
+    JSON.parse(teksti);
+    DATA_LAHDE = navigator.onLine === false ? 'välimuisti' : 'verkko';
+    try { localStorage.setItem('pilkki_data', teksti); } catch (e) { /* tila täynnä */ }
+  } catch (e) {
+    teksti = (() => { try { return localStorage.getItem('pilkki_data'); } catch (e2) { return null; } })();
+    DATA_LAHDE = teksti ? 'puhelimeen tallennettu' : '';
+  }
+  try { DATA = teksti ? JSON.parse(teksti) : null; } catch (e) { DATA = null; }
+}
+
+// --- sijainti
+function asetaPaikka() {
+  const p = ASET.paikka;
+  if (p === 'gps') {
+    if (!('geolocation' in navigator)) { GPS_VIRHE = 'Puhelin ei anna sijaintia.'; SIJ = null; return; }
+    navigator.geolocation.getCurrentPosition(pos => {
+      SIJ = { lat: pos.coords.latitude, lon: pos.coords.longitude, nimi: 'oma sijainti', tarkkuus: pos.coords.accuracy };
+      GPS_VIRHE = ''; piirra();
+    }, err => { GPS_VIRHE = 'GPS ei vastannut: ' + err.message; piirra(); },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+    if (!SIJ) SIJ = null;
+    return;
+  }
+  if (p === 'leiri' && ASET.leiri.lat != null) { SIJ = { lat: ASET.leiri.lat, lon: ASET.leiri.lon, nimi: 'leiri' }; return; }
+  const k = pisteet().find(x => x.nimi === p) || pisteet().find(x => x.nimi === 'Åminne') || pisteet()[0];
+  SIJ = { lat: k.lat, lon: k.lon, nimi: k.nimi };
+}
+function leiriPaikka() {
+  return ASET.leiri.lat != null ? { lat: ASET.leiri.lat, lon: ASET.leiri.lon, nimi: 'leiri' } : SIJ;
+}
+
+// --- laskut
+function kohvaraja(jaaCm, rhoLumi) { return jaaCm * (RHO_VESI - RHO_JAA) / rhoLumi; } // [L]
+function fddTunneista(ajatMs, T, alkuMs, loppuMs) { // °C·vrk tuntiarvoista [L]
+  let s = 0;
+  for (let i = 0; i < ajatMs.length; i++) {
+    if (ajatMs[i] <= alkuMs || ajatMs[i] > loppuMs || T[i] == null) continue;
+    s += Math.max(0, T_JAATYMIS - T[i]) / 24;
+  }
+  return s;
+}
+function fddPaivista(paivat, alkuPvm, loppuPvm) { // päivät alkuPvm < d <= loppuPvm [L]
+  let s = 0, n = 0;
+  for (const [d, t] of Object.entries(paivat || {})) {
+    if (d > alkuPvm && d <= loppuPvm && t != null) { s += Math.max(0, T_JAATYMIS - t); n++; }
+  }
+  return { fdd: s, n };
+}
+function paiviaValilla(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 864e5); }
+
+// --- valinnat
+function valitseMareografi(p) {
+  if (!DATA || !DATA.mareografit || !p) return null;
+  const ok = DATA.mareografit.filter(m => !m.virhe && (m.n2000_cm || []).length);
+  return lahin(ok, p.lat, p.lon);
+}
+function valitseEnnuste(p) {
+  if (!DATA || !DATA.vk_ennuste || !p) return null;
+  return lahin(DATA.vk_ennuste.filter(e => !e.virhe && (e.n2000_cm || []).length), p.lat, p.lon, 'lat_lahde', 'lon_lahde');
+}
+function valitseSaa(p) {
+  if (!DATA || !DATA.saa || !p) return null;
+  return lahin(DATA.saa.filter(s => !s.virhe && s.ajat), p.lat, p.lon, 'lat_lahde', 'lon_lahde');
+}
+function valitseLampo(p) {
+  if (!DATA || !DATA.lampohistoria || !p) return null;
+  return lahin(DATA.lampohistoria.asemat, p.lat, p.lon);
+}
+function jaaMallissa(p) {
+  const jm = DATA && DATA.jaa_malli;
+  if (!jm || !jm.lat || !jm.muuttujat || !p) return null;
+  const mu = jm.muuttujat, ref = mu.peitto_pct || mu.paksuus_cm;
+  if (!ref) return null;
+  const a0 = ref.arvot[0];
+  let paras = null;
+  for (let y = 0; y < jm.lat.length; y++) {
+    if (Math.abs(jm.lat[y] - p.lat) > 0.1) continue;
+    for (let x = 0; x < jm.lon.length; x++) {
+      if (a0[y][x] == null) continue;
+      const d = km(p.lat, p.lon, jm.lat[y], jm.lon[x]);
+      if (!paras || d < paras.d) paras = { y, x, d };
+    }
+  }
+  if (!paras || paras.d > 8) return { eiNae: true, d: paras ? paras.d : null };
+  const tanaan = paivaAvain(Date.now());
+  let i = jm.ajat.findIndex(a => a >= tanaan); if (i < 0) i = jm.ajat.length - 1;
+  const poimi = m => m ? m.arvot.map(a => a[paras.y][paras.x]) : null;
+  return { d: paras.d, ajat: jm.ajat, i, peitto: poimi(mu.peitto_pct), paksuus: poimi(mu.paksuus_cm),
+           lat: jm.lat[paras.y], lon: jm.lon[paras.x] };
+}
+function jaaKartassa(p) {
+  const jk = DATA && DATA.jaakartta;
+  if (!jk || !jk.paksuus_cm || !p) return null;
+  let paras = null;
+  for (let y = 0; y < jk.lat.length; y++) {
+    if (Math.abs(jk.lat[y] - p.lat) > 0.08) continue;
+    for (let x = 0; x < jk.lon.length; x++) {
+      const v = jk.paksuus_cm[y][x];
+      if (v == null) continue;
+      const d = km(p.lat, p.lon, jk.lat[y], jk.lon[x]);
+      if (!paras || d < paras.d) paras = { v, d };
+    }
+  }
+  return paras && paras.d <= 6 ? Object.assign({ aika: jk.aika }, paras) : null;
+}
+function mittauksetLahella(p, maxKm = 3) {
+  if (!p) return [];
+  return MITTAUKSET.filter(m => m.lat != null && km(p.lat, p.lon, m.lat, m.lon) <= maxKm)
+    .sort((a, b) => a.t - b.t);
+}
+
+// --- konteksti kaikille korteille
+function konteksti() {
+  const nyt = Date.now();
+  const p = SIJ, lp = leiriPaikka();
+  const c = { nyt, p, lp };
+  const mv = valitseMareografi(lp);
+  if (mv) {
+    c.mareo = mv.kohde; c.mareoKm = mv.km;
+    c.hav = sarjaMs(mv.kohde.n2000_cm); c.havTeor = sarjaMs(mv.kohde.teor_cm);
+    c.vesilampo = sarjaMs(mv.kohde.vesilampo_c);
+  }
+  const ev = valitseEnnuste(lp);
+  if (ev) {
+    c.enn = sarjaMs(ev.kohde.n2000_cm).filter(x => x[0] >= nyt - 3600e3);
+    c.ennKohde = ev.kohde; c.ennKm = ev.km;
+  }
+  // N2000 − teor. keskivesi: ensisijaisesti saman mareografin mittauspareista, varalla ennustepisteestä [L]
+  const erotus = (n, te) => { const erot = []; for (const [t, v] of n) { const tv = arvoAjalla(te, t, 1); if (tv != null) erot.push(v - tv); }
+    return erot.length ? erot.reduce((a, b) => a + b, 0) / erot.length : null; };
+  if (c.hav && c.havTeor) c.n2000MiinusTeor = erotus(c.hav, c.havTeor);
+  if (c.n2000MiinusTeor == null && ev) c.n2000MiinusTeor = erotus(sarjaMs(ev.kohde.n2000_cm), sarjaMs(ev.kohde.teor_cm));
+  if (c.mareo && IL_KELTAINEN_TEOR_CM[c.mareo.nimi] != null && c.n2000MiinusTeor != null)
+    c.ilKeltainenN2000 = IL_KELTAINEN_TEOR_CM[c.mareo.nimi] + c.n2000MiinusTeor; // [L]
+  c.leiriKorkeus = ASET.leiri.korkeus_m * 100;
+  c.leiriHalytys = c.leiriKorkeus - ASET.leiri.marginaali_m * 100;
+  const sv = valitseSaa(p);
+  if (sv) { c.saa = sv.kohde; c.saaKm = sv.km; c.saaMs = sv.kohde.ajat.map(aikaMs); }
+  const lv = valitseLampo(p);
+  if (lv) { c.lampo = lv.kohde; c.lampoKm = lv.km; }
+  c.jaa = jaaMallissa(p);
+  c.kartta = jaaKartassa(p);
+  c.mittaukset = mittauksetLahella(p);
+  c.viimeisin = c.mittaukset.length ? c.mittaukset[c.mittaukset.length - 1] : null;
+  return c;
+}
+
+// --- varoitukset
+function varoitukset(c) {
+  const v = [];
+  const lisaa = (taso, otsikko, teksti, peruste) => v.push({ taso, otsikko, teksti, peruste });
+  if (!DATA) { lisaa('info', 'Ei dataa', 'Dataa ei saatu verkosta eikä puhelimesta. Varoituksia ei voi laskea.', '–'); return v; }
+  const ikaH = (c.nyt - aikaMs(DATA.haettu)) / 3600e3;
+  if (ikaH > RAJAT.data_vanha_h) lisaa('info', `Data on ${fi(ikaH)} h vanhaa`, `Haettu ${pvmKlo(aikaMs(DATA.haettu))}.`, 'tieto');
+
+  // leiri
+  const nytHav = c.hav && c.hav.length ? c.hav[c.hav.length - 1] : null;
+  const enn48 = (c.enn || []).filter(x => x[0] <= c.nyt + 48 * 3600e3);
+  const ennMax = enn48.reduce((a, x) => (!a || x[1] > a[1]) ? x : a, null);
+  if (nytHav && nytHav[1] >= c.leiriHalytys) {
+    lisaa('punainen', 'Vesi on leirin hälytysrajalla', `Mitattu ${fi(nytHav[1] / 100, 2)} m N2000 (${c.mareo.nimi}, ${klo(nytHav[0])}). Raja ${fi(c.leiriHalytys / 100, 2)} m.`, 'mitattu');
+  } else if (ennMax && ennMax[1] >= c.leiriHalytys) {
+    lisaa('punainen', 'Ennuste nousee leirin hälytysrajalle', `Huippu ${fi(ennMax[1] / 100, 2)} m N2000 ${klo(ennMax[0])}. Raja ${fi(c.leiriHalytys / 100, 2)} m (maa ${fi(c.leiriKorkeus / 100, 2)} m − marginaali).`, 'ennuste FMI');
+  } else if (ennMax && ennMax[1] >= c.leiriHalytys - RAJAT.leiri_lahestyy_cm) {
+    lisaa('keltainen', 'Vesi lähestyy leirin hälytysrajaa', `Ennusteen huippu ${fi(ennMax[1] / 100, 2)} m N2000 ${klo(ennMax[0])}, raja ${fi(c.leiriHalytys / 100, 2)} m.`, 'ennuste FMI');
+  }
+  // nopea muutos
+  let maxMuutos = null;
+  const tutki = (s, laji) => {
+    for (let i = 0; i < s.length; i++) {
+      const v2 = arvoAjalla(s, s[i][0] + 12 * 3600e3, 40 * 60e3);
+      if (v2 == null) continue;
+      const d = v2 - s[i][1];
+      if (!maxMuutos || Math.abs(d) > Math.abs(maxMuutos.d)) maxMuutos = { d, t: s[i][0], laji };
+    }
+  };
+  if (c.hav) tutki(c.hav.filter(x => x[0] >= c.nyt - 26 * 3600e3), 'mitattu');
+  if (enn48.length) tutki(enn48, 'ennuste FMI');
+  if (maxMuutos && Math.abs(maxMuutos.d) >= RAJAT.vk_muutos_cm_12h) {
+    lisaa('keltainen', `Nopea vedenkorkeuden muutos ${fiEtumerkki(maxMuutos.d)} cm / 12 h`,
+      `Alkaen ${klo(maxMuutos.t)}. Rantajää ja railot voivat haljeta tai tulvia.`, maxMuutos.laji + ' · raja [O]');
+  }
+  // kohva
+  const m = c.viimeisin;
+  if (m && c.nyt - m.t < 7 * 864e5) {
+    const raja = kohvaraja(m.jaa_cm, (LUMI[m.lumi_laatu] || LUMI.tiivis).rho);
+    if (m.kohva) lisaa('keltainen', 'Kohvaa havaittu', `Oma havainto ${pvmKlo(m.t)}.`, 'mitattu');
+    else if (m.lumi_cm >= raja) lisaa('keltainen', 'Reiät tulvivat todennäköisesti',
+      `Lunta ${fi(m.lumi_cm)} cm, raja ${fi(raja, 1)} cm ${fi(m.jaa_cm)} cm:n jäällä (${pvmKlo(m.t)}).`, 'laskettu');
+  }
+  // suoja ja tuuli
+  if (c.saa) {
+    let plus = 0, vesisade = false, maxPuuska = null, maxKeski = null;
+    c.saaMs.forEach((t, i) => {
+      if (t < c.nyt || t > c.nyt + 48 * 3600e3) return;
+      const T = c.saa.T[i];
+      if (T != null && T > 0) { plus++; if ((c.saa.sade[i] || 0) > 0.1) vesisade = true; }
+      if (t <= c.nyt + 24 * 3600e3) {
+        if (c.saa.wg[i] != null && (!maxPuuska || c.saa.wg[i] > maxPuuska.v)) maxPuuska = { v: c.saa.wg[i], t };
+        if (c.saa.ws[i] != null && (!maxKeski || c.saa.ws[i] > maxKeski.v)) maxKeski = { v: c.saa.ws[i], t };
+      }
+    });
+    if (plus >= RAJAT.suoja_tunteja_48h) lisaa('keltainen', `Suojasää ${plus} h seuraavan 48 h aikana`,
+      'Jää ei kasva, pinta heikkenee ja kohva lisääntyy.' + (vesisade ? ' Vesisadetta plusasteilla.' : ''), 'ennuste FMI · raja [O]');
+    if (maxPuuska && maxPuuska.v >= RAJAT.puuska_ms) lisaa('keltainen', `Puuskat ${fi(maxPuuska.v)} m/s`,
+      `${klo(maxPuuska.t)}. Kodan kiinnitys ja liikkuminen.`, 'ennuste FMI · raja [O]');
+    else if (maxKeski && maxKeski.v >= RAJAT.keskituuli_ms) lisaa('info', `Keskituuli ${fi(maxKeski.v)} m/s`,
+      `${klo(maxKeski.t)}.`, 'ennuste FMI · raja [O]');
+  }
+  // malli
+  if (c.jaa && !c.jaa.eiNae && c.jaa.peitto) {
+    const pt = c.jaa.peitto[c.jaa.i];
+    if (pt != null && pt < RAJAT.malli_peitto_min_pct) lisaa('keltainen', `Mallissa jääpeite vajaa (${pt} %)`,
+      `Lähin meriruutu ${fi(c.jaa.d, 1)} km. Avovettä tai ajojäätä seudulla.`, 'malli 2 km');
+  }
+  // lähteiden virheet
+  for (const [nimi, t] of Object.entries(DATA.tila || {})) {
+    if (t && t.ok === false && !t.kantaa_edellisesta) lisaa('info', `Lähde ei vastannut: ${nimi}`,
+      t.edellinen_kaytossa ? `Käytössä edellinen haku (${pvmKlo(aikaMs(t.edellinen_kaytossa))}).` : 'Tietoa ei ole.', 'tieto');
+  }
+  const j = { punainen: 0, keltainen: 1, info: 2 };
+  return v.sort((a, b) => j[a.taso] - j[b.taso]);
+}
+
+// --- kaavio
+const tuntiFmt = new Intl.DateTimeFormat('fi-FI', { timeZone: 'Europe/Helsinki', hour: 'numeric', hourCycle: 'h23' });
+function viivakaavio(o) {
+  const W = 360, H = o.korkeus || 190, vas = 42, oik = 8, yla = 10, ala = 24;
+  const kaikki = o.sarjat.flatMap(s => s.p);
+  if (!kaikki.length) return '<p class="hiljainen">Ei dataa kaavioon.</p>';
+  const x0 = Math.min(...kaikki.map(p => p[0])), x1 = Math.max(...kaikki.map(p => p[0]));
+  const ys = kaikki.map(p => p[1]).concat((o.viivat || []).map(v => v.y));
+  let y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const pad = Math.max(4, (y1 - y0) * 0.08); y0 -= pad; y1 += pad;
+  const X = t => vas + (t - x0) / ((x1 - x0) || 1) * (W - vas - oik);
+  const Y = v => yla + (1 - (v - y0) / ((y1 - y0) || 1)) * (H - yla - ala);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.nimi || 'kaavio')}">`;
+  const askeleet = [1, 2, 5, 10, 20, 50, 100, 200];
+  const askel = askeleet.find(a => (y1 - y0) / a <= 7) || 500;
+  for (let v = Math.ceil(y0 / askel) * askel; v <= y1; v += askel) {
+    s += `<line x1="${vas}" x2="${W - oik}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e3e9ee"/>`;
+    s += `<text x="${vas - 4}" y="${Y(v) + 4}" font-size="11" text-anchor="end" fill="#5a6b77">${fi(v * (o.kerroin || 1), o.desim || 0)}</text>`;
+  }
+  const keskiyot = [];
+  for (let t = Math.ceil(x0 / 3600e3) * 3600e3; t <= x1; t += 3600e3) if (tuntiFmt.format(new Date(t)) === '0') keskiyot.push(t);
+  const joka = Math.max(1, Math.ceil(keskiyot.length / 5)); // enintään ~5 päivämerkintää
+  keskiyot.forEach((t, i) => {
+    s += `<line x1="${X(t)}" x2="${X(t)}" y1="${yla}" y2="${H - ala}" stroke="#e3e9ee"/>`;
+    if (i % joka === 0) s += `<text x="${X(t) + 3}" y="${H - 8}" font-size="11" fill="#5a6b77">${esc(aikaFi(t, { weekday: 'short', day: 'numeric' }))}</text>`;
+  });
+  if (o.nyt && o.nyt >= x0 && o.nyt <= x1)
+    s += `<line x1="${X(o.nyt)}" x2="${X(o.nyt)}" y1="${yla}" y2="${H - ala}" stroke="#0d3b52" stroke-dasharray="2 3"/>`;
+  for (const v of o.viivat || []) {
+    s += `<line x1="${vas}" x2="${W - oik}" y1="${Y(v.y)}" y2="${Y(v.y)}" stroke="${v.vari}" stroke-width="1.5" ${v.katko ? 'stroke-dasharray="6 4"' : ''}/>`;
+    s += `<text x="${W - oik - 2}" y="${Y(v.y) - 3}" font-size="11" text-anchor="end" fill="${v.vari}">${esc(v.teksti)}</text>`;
+  }
+  for (const sr of o.sarjat) {
+    if (!sr.p.length) continue;
+    const d = sr.p.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ');
+    s += `<path d="${d}" fill="none" stroke="${sr.vari}" stroke-width="${sr.leveys || 2.2}" ${sr.katko ? 'stroke-dasharray="5 3"' : ''}/>`;
+  }
+  return s + '</svg>';
+}
+
+// --- kortit
+function korttiPaikka(c) {
+  const vaihtoehdot = [['gps', 'GPS – oma sijainti'], ['leiri', 'Leiri' + (ASET.leiri.lat == null ? ' (ei asetettu)' : '')]]
+    .concat(pisteet().map(p => [p.nimi, p.nimi]));
+  let h = `<div class="rivi"><div><label for="paikka">Paikka</label><select id="paikka">` +
+    vaihtoehdot.map(([k, n]) => `<option value="${esc(k)}" ${ASET.paikka === k ? 'selected' : ''}>${esc(n)}</option>`).join('') +
+    `</select></div></div>`;
+  if (ASET.paikka === 'gps') h += `<p class="pieni">${SIJ ? `${fi(SIJ.lat, 4)} N, ${fi(SIJ.lon, 4)} E` + (SIJ.tarkkuus ? ` (±${fi(SIJ.tarkkuus)} m)` : '') : (GPS_VIRHE || 'Haetaan GPS-sijaintia…')}</p>`;
+  h += `<details><summary>Leiri ja vedenkorkeusvahti</summary>
+    <p class="pieni hiljainen">Leirin maan korkeus laserkeilauksesta (kohta A 0,57 m N2000). Hälytys, kun vesi on marginaalin päässä maasta.</p>
+    <div class="rivi">
+      <div><label for="leiri-korkeus">Maan korkeus (m N2000)</label><input id="leiri-korkeus" type="number" inputmode="decimal" step="0.01" value="${ASET.leiri.korkeus_m}"></div>
+      <div><label for="leiri-marginaali">Marginaali (m)</label><input id="leiri-marginaali" type="number" inputmode="decimal" step="0.01" value="${ASET.leiri.marginaali_m}"></div>
+    </div>
+    <p class="pieni">${ASET.leiri.lat != null ? `Leiri: ${fi(ASET.leiri.lat, 5)} N, ${fi(ASET.leiri.lon, 5)} E` : 'Leirin sijaintia ei ole asetettu – vahti käyttää valittua paikkaa.'}</p>
+    <button class="nappi toissijainen" id="leiri-gps">Aseta leiri tähän (GPS)</button>
+  </details>`;
+  $('k-paikka').innerHTML = h;
+  $('paikka').onchange = e => { ASET.paikka = e.target.value; kirjoitaLS('pilkki_asetukset', ASET); SIJ = null; asetaPaikka(); piirra(); };
+  $('leiri-korkeus').onchange = e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (isFinite(v)) { ASET.leiri.korkeus_m = v; kirjoitaLS('pilkki_asetukset', ASET); piirra(); } };
+  $('leiri-marginaali').onchange = e => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (isFinite(v) && v >= 0) { ASET.leiri.marginaali_m = v; kirjoitaLS('pilkki_asetukset', ASET); piirra(); } };
+  $('leiri-gps').onclick = () => {
+    if (!('geolocation' in navigator)) return alert('Puhelin ei anna sijaintia.');
+    navigator.geolocation.getCurrentPosition(pos => {
+      ASET.leiri.lat = +pos.coords.latitude.toFixed(6); ASET.leiri.lon = +pos.coords.longitude.toFixed(6);
+      kirjoitaLS('pilkki_asetukset', ASET); piirra();
+    }, err => alert('GPS ei vastannut: ' + err.message), { enableHighAccuracy: true, timeout: 20000 });
+  };
+}
+
+function korttiVaroitukset(c) {
+  const vs = varoitukset(c);
+  let h = '<h2>Varoitukset</h2>';
+  h += vs.length ? vs.map(v => `<div class="varoitus ${v.taso}"><b>${esc(v.otsikko)}</b><div>${v.teksti}</div><span class="peruste">${esc(v.peruste)}</span></div>`).join('')
+    : '<div class="varoitus tyhja"><b>Ei varoituksia näillä säännöillä</b><div>Se ei tarkoita, että jää kantaa.</div></div>';
+  h += '<p class="pieni hiljainen">Sovellus ei kerro, kantaako jää. Oma mittaus ratkaisee.</p>';
+  $('k-varoitukset').innerHTML = h;
+}
+
+function korttiMittaus(c) {
+  const m = c.viimeisin;
+  let h = `<h2>Oma mittaus</h2>
+  <div class="rivi">
+    <div><label for="m-jaa">Jää (cm)</label><input id="m-jaa" type="number" inputmode="numeric" min="0" step="1"></div>
+    <div><label for="m-lumi">Lumi jäällä (cm)</label><input id="m-lumi" type="number" inputmode="numeric" min="0" step="1"></div>
+  </div>
+  <div class="rivi" style="margin-top:8px">
+    <div><label for="m-laatu">Lumen laatu</label><select id="m-laatu">${Object.entries(LUMI).map(([k, l]) => `<option value="${k}" ${k === 'tiivis' ? 'selected' : ''}>${l.nimi} (~${l.rho} kg/m³)</option>`).join('')}</select></div>
+    <div style="flex:0 0 auto"><label for="m-kohva">Kohvaa</label><input id="m-kohva" type="checkbox"></div>
+  </div>
+  <div id="m-tulos" class="tulos">Syötä jää ja lumi – kohvaraja lasketaan heti.</div>
+  <div style="margin-top:8px"><button class="nappi" id="m-tallenna">Tallenna mittaus (GPS)</button></div>`;
+  if (m) h += `<p class="pieni">Viimeisin tässä lähellä: ${pvmKlo(m.t)} – jää ${fi(m.jaa_cm)} cm, lumi ${fi(m.lumi_cm)} cm${m.kohva ? ', kohvaa' : ''}.</p>`;
+  h += `<p class="pieni hiljainen">Kohvaraja ${tasoMerkki('laskettu')}: lumi painaa jään pinnan veden alle, kun lumi &gt; jää × (${RHO_VESI} − ${RHO_JAA}) / lumen tiheys. Tiheydet ${tasoMerkki('oletus')}. Mittaukset jäävät vain tähän puhelimeen.</p>`;
+  $('k-mittaus').innerHTML = h;
+  const paivita = () => {
+    const j = parseFloat($('m-jaa').value), l = parseFloat($('m-lumi').value), laatu = LUMI[$('m-laatu').value];
+    const el = $('m-tulos');
+    if (!isFinite(j) || j <= 0) { el.className = 'tulos'; el.textContent = 'Syötä jää ja lumi – kohvaraja lasketaan heti.'; return; }
+    const raja = kohvaraja(j, laatu.rho);
+    const yli = isFinite(l) && l >= raja;
+    el.className = 'tulos' + (yli ? ' yli' : '');
+    el.innerHTML = `Kohvaraja: lunta enintään <b>${fi(raja)} cm</b> (${laatu.nimi}).` +
+      (isFinite(l) ? (yli ? ` Nyt ${fi(l)} cm – <b>reiät tulvivat todennäköisesti</b>.` : ` Nyt ${fi(l)} cm – pinta pysyy veden yläpuolella.`) : '');
+  };
+  ['m-jaa', 'm-lumi', 'm-laatu'].forEach(id => $(id).addEventListener('input', paivita));
+  $('m-tallenna').onclick = () => {
+    const j = parseFloat($('m-jaa').value), l = parseFloat($('m-lumi').value);
+    if (!isFinite(j) || j <= 0) return alert('Syötä jään paksuus.');
+    const rivi = { t: Date.now(), jaa_cm: j, lumi_cm: isFinite(l) ? l : 0, lumi_laatu: $('m-laatu').value, kohva: $('m-kohva').checked };
+    const tallenna = (lat, lon, tark, gps) => {
+      Object.assign(rivi, { lat, lon, tarkkuus_m: tark, gps });
+      MITTAUKSET.push(rivi);
+      if (!kirjoitaLS('pilkki_mittaukset', MITTAUKSET)) alert('Tallennus puhelimeen epäonnistui (tila täynnä?).');
+      piirra();
+    };
+    const nappi = $('m-tallenna'); nappi.disabled = true; nappi.textContent = 'Haetaan GPS…';
+    if (!('geolocation' in navigator)) return tallenna(SIJ && SIJ.lat, SIJ && SIJ.lon, null, false);
+    navigator.geolocation.getCurrentPosition(
+      pos => tallenna(+pos.coords.latitude.toFixed(6), +pos.coords.longitude.toFixed(6), Math.round(pos.coords.accuracy), true),
+      () => tallenna(SIJ && SIJ.lat, SIJ && SIJ.lon, null, false),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+  };
+}
+
+function korttiVedenkorkeus(c) {
+  let h = '<h2>Vedenkorkeus</h2>';
+  if (!c.mareo && !c.enn) { $('k-vedenkorkeus').innerHTML = h + '<p class="hiljainen">Ei vedenkorkeusdataa.</p>'; return; }
+  if (c.hav && c.hav.length) {
+    const [t, v] = c.hav[c.hav.length - 1];
+    const v24 = arvoAjalla(c.hav, t - 24 * 3600e3), v12 = arvoAjalla(c.hav, t - 12 * 3600e3);
+    const lampo = c.vesilampo && c.vesilampo.length ? c.vesilampo[c.vesilampo.length - 1][1] : null;
+    h += `<div class="iso">${fi(v / 100, 2)} m <span class="pieni">N2000</span></div>
+      <p class="pieni">${esc(c.mareo.nimi)} mareografi (${fi(c.mareoKm, 0)} km), ${klo(t)} ${tasoMerkki('mitattu')}<br>
+      Muutos 12 h ${fiEtumerkki(v12 == null ? null : v - v12)} cm · 24 h ${fiEtumerkki(v24 == null ? null : v - v24)} cm` +
+      (lampo != null ? ` · vesi ${fi(lampo, 1)} °C` : '') + '</p>';
+  }
+  if (c.enn && c.enn.length) {
+    const mx = c.enn.reduce((a, x) => x[1] > a[1] ? x : a), mn = c.enn.reduce((a, x) => x[1] < a[1] ? x : a);
+    h += `<p class="pieni">Ennuste ${tasoMerkki('ennuste FMI')} (${fi(c.ennKm, 0)} km pisteestä) ${klo(c.enn[c.enn.length - 1][0])} asti:
+      huippu ${fi(mx[1] / 100, 2)} m ${klo(mx[0])}, pohja ${fi(mn[1] / 100, 2)} m ${klo(mn[0])}.</p>`;
+  }
+  const viivat = [
+    { y: c.leiriKorkeus, vari: VARI.leiri, teksti: `leirin maa ${fi(c.leiriKorkeus / 100, 2)}` },
+    { y: c.leiriHalytys, vari: VARI.leiri, teksti: `hälytys ${fi(c.leiriHalytys / 100, 2)}`, katko: true },
+  ];
+  if (c.ilKeltainenN2000 != null) viivat.push({ y: c.ilKeltainenN2000, vari: VARI.il, teksti: `IL keltainen ≈${fi(c.ilKeltainenN2000 / 100, 2)}`, katko: true });
+  h += viivakaavio({ nimi: 'vedenkorkeus', nyt: c.nyt, kerroin: 0.01, desim: 1,
+    sarjat: [{ p: (c.hav || []).filter(x => x[0] >= c.nyt - 48 * 3600e3), vari: VARI.vesi },
+             { p: c.enn || [], vari: VARI.ennuste, katko: true }], viivat });
+  h += `<div class="selite"><span style="--c:var(--vesi)">mitattu</span><span style="--c:var(--ennuste)">ennuste</span><span style="--c:var(--leiri)">leiri</span>${c.ilKeltainenN2000 != null ? '<span style="--c:var(--il)">IL keltainen raja</span>' : ''}</div>`;
+  if (c.ilKeltainenN2000 != null) h += `<p class="pieni hiljainen">IL:n keltainen raja ${tasoMerkki('laskettu')}: ${IL_KELTAINEN_TEOR_CM[c.mareo.nimi]} cm teoreettisesta keskivedestä [T] + mareografin mittausten ero N2000:een ${fiEtumerkki(c.n2000MiinusTeor, 1)} cm.</p>`;
+  $('k-vedenkorkeus').innerHTML = h;
+}
+
+function korttiJaa(c) {
+  let h = '<h2>Jää – seudun tilanne</h2>';
+  const j = c.jaa;
+  if (!DATA || !DATA.jaa_malli) h += '<p class="hiljainen">Jäämallin dataa ei ole.</p>';
+  else if (!j) h += '<p class="hiljainen">Jäämallin dataa ei ole.</p>';
+  else if (j.eiNae) h += `<p>Malli ei näe tätä kohtaa (lähin meriruutu ${j.d == null ? 'yli 8' : fi(j.d, 1)} km). Lahti on mallin ruutua kapeampi.</p>`;
+  else {
+    const pt = j.peitto ? j.peitto[j.i] : null, ph = j.paksuus ? j.paksuus[j.i] : null;
+    h += `<div class="iso">${ph == null ? '–' : fi(ph)} cm <span class="pieni">· peitto ${pt == null ? '–' : fi(pt)} %</span></div>
+      <p class="pieni">Copernicus-malli ${tasoMerkki('malli 2 km')}, lähin meriruutu ${fi(j.d, 1)} km, ${esc(j.ajat[j.i])}.</p>`;
+    if (j.paksuus) {
+      const p = j.ajat.map((a, i) => [Date.parse(a + 'T12:00:00Z'), j.paksuus[i]]).filter(x => x[1] != null);
+      h += viivakaavio({ nimi: 'mallin jään paksuus', korkeus: 130, nyt: c.nyt, sarjat: [{ p, vari: VARI.vesi }], viivat: [] });
+      h += '<p class="pieni hiljainen">Mallin paksuus (cm) analyysistä ennusteeseen.</p>';
+    }
+  }
+  if (c.kartta) h += `<p class="pieni">Jääkartta (FMI/SMHI) ${esc(c.kartta.aika || '')}: <b>${fi(c.kartta.v)} cm</b>, ${fi(c.kartta.d, 1)} km päässä ${tasoMerkki('jääkartta')}</p>`;
+  else if (DATA && DATA.jaakartta && DATA.jaakartta.huom) h += `<p class="pieni hiljainen">Jääkartta: ${esc(DATA.jaakartta.huom)}.</p>`;
+  h += '<p class="pieni hiljainen">Malli ja jääkartta kertovat seudun tilanteen. Lahdessa voi olla aivan muuta – oma mittaus menee aina näiden edelle.</p>';
+  $('k-jaa').innerHTML = h;
+}
+
+function korttiKasvu(c) {
+  let h = `<h2>Jään kasvu ${tasoMerkki('laskettu')}</h2>`;
+  const m = c.viimeisin;
+  if (!m) { $('k-kasvu').innerHTML = h + '<p class="hiljainen">Tarvitaan oma mittaus tästä lähistöltä (3 km).</p>'; return; }
+  if (!c.saa) { $('k-kasvu').innerHTML = h + '<p class="hiljainen">Sääennustetta ei ole.</p>'; return; }
+  // kalibrointi omista mittauksista
+  let a = A_YLARAJA, kal = null, hylatty = null;
+  if (c.lampo) {
+    // uusin mittauspari, jonka välillä on vähintään 2 vrk, 5 °C·vrk pakkasta ja kasvua
+    for (let i = c.mittaukset.length - 1; i > 0 && !kal && !hylatty; i--) {
+      for (let k = i - 1; k >= 0; k--) {
+        const m1 = c.mittaukset[k], m2 = c.mittaukset[i];
+        const d1 = paivaAvain(m1.t), d2 = paivaAvain(m2.t);
+        const paivia = paiviaValilla(d1, d2);
+        const f = fddPaivista(c.lampo.paivat, d1, d2);
+        if (paivia < 2 || f.n < 0.8 * paivia || f.fdd < 5 || m2.jaa_cm <= m1.jaa_cm) continue;
+        const ak = Math.sqrt((m2.jaa_cm ** 2 - m1.jaa_cm ** 2) / f.fdd);
+        if (ak > 0.3 && ak <= A_YLARAJA) { kal = { a: ak, m1, m2, fdd: f.fdd }; a = ak; }
+        else hylatty = { a: ak, m1, m2 };
+        break;
+      }
+    }
+  }
+  const tanaan = paivaAvain(c.nyt), mittausPv = paivaAvain(m.t);
+  const hist = c.lampo ? fddPaivista(c.lampo.paivat, mittausPv, paivaAvain(c.nyt - 864e5)) : { fdd: 0, n: 0 };
+  const loppu = c.saaMs[c.saaMs.length - 1];
+  const rivit = [24, 48, (loppu - c.nyt) / 3600e3].filter((x, i, arr) => x > 0 && arr.indexOf(x) === i && x <= (loppu - c.nyt) / 3600e3 + 0.5);
+  h += `<p class="pieni">Lähtö: oma mittaus ${pvmKlo(m.t)} ${fi(m.jaa_cm)} cm. ` +
+    (kal ? `Kerroin a = ${fi(kal.a, 2)} cm/√(°C·vrk) kalibroitu omista mittauksista (${pvmKlo(kal.m1.t)} → ${pvmKlo(kal.m2.t)}).`
+         : `Kerroin a = ${fi(A_YLARAJA, 1)} on teoreettinen yläraja ilman lunta – todellinen kasvu on hitaampi. ` +
+           (hylatty ? `Mittauspari ${pvmKlo(hylatty.m1.t)} → ${pvmKlo(hylatty.m2.t)} antaisi a = ${fi(hylatty.a, 2)}, yli teoreettisen ylärajan – ei käytetä (eri kohta, mittausvirhe tai lämpöhistorian asema eri sääolossa?).`
+                    : 'Kalibrointiin tarvitaan kaksi mittausta samasta paikasta.')) + '</p>';
+  h += '<table><tr><th>Aika</th><th>Pakkasta °C·vrk</th><th>Jää cm</th></tr>';
+  let plusTunnit = 0;
+  c.saaMs.forEach((t, i) => { if (t > c.nyt && c.saa.T[i] != null && c.saa.T[i] > 0) plusTunnit++; });
+  for (const tunnit of rivit) {
+    const t = c.nyt + tunnit * 3600e3;
+    const fdd = hist.fdd + fddTunneista(c.saaMs, c.saa.T, c.nyt, t);
+    const hh = Math.sqrt(m.jaa_cm ** 2 + a * a * fdd);
+    h += `<tr><td>${klo(t)}</td><td>${fi(fdd, 1)}</td><td>${kal ? '' : '≤ '}${fi(hh)}</td></tr>`;
+  }
+  h += '</table>';
+  if (mittausPv < tanaan && hist.n < paiviaValilla(mittausPv, tanaan) - 1)
+    h += '<p class="pieni hiljainen">Lämpöhistoriasta puuttuu päiviä mittauksen jälkeen – arvio on vajaa.</p>';
+  if (plusTunnit) h += `<p class="pieni">Ennusteessa ${plusTunnit} h plusasteita: silloin jää ei kasva. Heikkenemistä ei lasketa (ei luotettavaa mallia ${tasoMerkki('oletus')}).</p>`;
+  h += `<p class="pieni hiljainen">Stefanin laki: jää² = jää₀² + a² × pakkasastevuorokaudet (jäätymispiste ${fi(T_JAATYMIS, 1)} °C). Lämpöhistoria: ${c.lampo ? esc(c.lampo.paikka) + ' -asema, ' + fi(c.lampoKm, 0) + ' km' : 'ei saatavilla'}; ennuste HARMONIE.</p>`;
+  $('k-kasvu').innerHTML = h;
+}
+
+function korttiSaa(c) {
+  let h = '<h2>Sää 48 h</h2>';
+  if (!c.saa) { $('k-saa').innerHTML = h + '<p class="hiljainen">Sääennustetta ei ole.</p>'; return; }
+  h += `<p class="pieni">HARMONIE ${tasoMerkki('ennuste FMI')} – piste ${esc(c.saa.nimi)} (${fi(c.saaKm, 0)} km)</p>`;
+  h += '<table><tr><th>Aika</th><th>°C</th><th>Tuuli / puuska</th><th>Suunta</th><th>Sade mm</th></tr>';
+  c.saaMs.forEach((t, i) => {
+    if (t < c.nyt - 30 * 60e3 || t > c.nyt + 48 * 3600e3) return;
+    if (parseInt(tuntiFmt.format(new Date(t)), 10) % 3 !== 0) return;
+    const wd = c.saa.wd[i];
+    // sademäärä edeltävät 3 h
+    let sade = 0, sadeOk = false;
+    for (let k = Math.max(0, i - 2); k <= i; k++) if (c.saa.sade[k] != null) { sade += c.saa.sade[k]; sadeOk = true; }
+    h += `<tr><td>${klo(t)}</td><td>${fi(c.saa.T[i], 0)}</td><td>${fi(c.saa.ws[i], 0)} / ${fi(c.saa.wg[i], 0)}</td>
+      <td>${wd == null ? '–' : `<span class="nuoli" style="transform:rotate(${wd}deg)">↓</span> ${ilmansuunta(wd)}`}</td>
+      <td>${sadeOk ? fi(sade, 1) : '–'}</td></tr>`;
+  });
+  h += '</table>';
+  if (c.lampo) {
+    const p = c.lampo.paivat || {}, nytPv = paivaAvain(c.nyt);
+    const alku = n => paivaAvain(c.nyt - n * 864e5);
+    const kausiVuosi = new Date(c.nyt).getMonth() >= 6 ? new Date(c.nyt).getFullYear() : new Date(c.nyt).getFullYear() - 1;
+    const f7 = fddPaivista(p, alku(8), nytPv), f30 = fddPaivista(p, alku(31), nytPv), fk = fddPaivista(p, `${kausiVuosi}-10-31`, nytPv);
+    h += `<p class="pieni">Pakkasastevuorokaudet ${tasoMerkki('mitattu')} ${esc(c.lampo.paikka)}-asema: 7 vrk ${fi(f7.fdd, 0)} (${f7.n} pv) · 30 vrk ${fi(f30.fdd, 0)} (${f30.n} pv) · 1.11. alkaen ${fi(fk.fdd, 0)} (${fk.n} pv)</p>`;
+  }
+  $('k-saa').innerHTML = h;
+}
+
+function korttiTilasto(c) {
+  let h = '<h2>Leirin vedenkorkeus historiassa</h2>';
+  const ti = DATA && DATA.vk_tilasto;
+  if (!ti || !ti.asemat) {
+    $('k-tilasto').innerHTML = h + '<p class="pieni">Tilastoa ei ole vielä laskettu. GitHubissa: Actions → Pilkkitutka → Run workflow → rasti kohtaan tilasto.</p>';
+    return;
+  }
+  const lp = leiriPaikka();
+  const as = lp ? (lahin(ti.asemat, lp.lat, lp.lon) || {}).kohde : ti.asemat[0];
+  if (!as) { $('k-tilasto').innerHTML = h + '<p class="hiljainen">Ei asemaa.</p>'; return; }
+  const raja = c.leiriHalytys;
+  let kaikkiPv = 0, ylitysPv = 0, ikkPv = 0, ikkYli = 0, kausia = 0;
+  let taulu = '<table><tr><th>Kausi</th><th>Huippu 25.2.–10.3.</th><th>Päiviä ≥ raja (koko kausi)</th></tr>';
+  for (const k of as.kaudet || []) {
+    const pv = Object.entries(k.vrk_max_cm || {});
+    if (pv.length < 60) { taulu += `<tr><td>${esc(k.kausi)}</td><td colspan="2" class="hiljainen">dataa vain ${pv.length} vrk</td></tr>`; continue; }
+    kausia++;
+    let ikkMax = null, yli = 0;
+    for (const [d, v] of pv) {
+      kaikkiPv++; if (v >= raja) { ylitysPv++; yli++; }
+      const md = d.slice(5);
+      if (md >= '02-25' && md <= '03-10') { ikkPv++; if (v >= raja) ikkYli++; if (ikkMax == null || v > ikkMax) ikkMax = v; }
+    }
+    taulu += `<tr><td>${esc(k.kausi)}</td><td>${ikkMax == null ? '–' : fi(ikkMax / 100, 2) + ' m'}</td><td>${yli}</td></tr>`;
+  }
+  taulu += '</table>';
+  h += `<p>${esc(as.nimi)}, ${kausia} talvea (joulu–huhti). Raja ${fi(raja / 100, 2)} m N2000 (leiri − marginaali):</p>
+    <p class="iso" style="font-size:20px">25.2.–10.3.: ${ikkPv ? fi(100 * ikkYli / ikkPv, 1) : '–'} % päivistä · koko talvi: ${kaikkiPv ? fi(100 * ylitysPv / kaikkiPv, 1) : '–'} %</p>
+    <p class="pieni">Osuus päivistä, joina vuorokauden korkein vedenkorkeus kävi rajalla tai yli ${tasoMerkki('laskettu mittauksista')}.</p>
+    <details><summary>Kausittain</summary>${taulu}</details>`;
+  $('k-tilasto').innerHTML = h;
+}
+
+function korttiLahteet(c) {
+  let h = `<b>Lähteet</b> · versio ${VERSIO}`;
+  if (!DATA) { $('k-lahteet').innerHTML = h + '<p>Ei dataa.</p>'; return; }
+  h += `<p>Haettu ${pvmKlo(aikaMs(DATA.haettu))} (${esc(DATA_LAHDE)}).</p><table>`;
+  const nimet = { mareografit: 'Mareografit (FMI)', vk_ennuste: 'Vedenkorkeusennuste (FMI)', saa: 'Sääennuste HARMONIE (FMI)',
+    lampohistoria: 'Lämpöhavainnot (FMI)', jaa_malli: 'Jäämalli (Copernicus BAL)', jaakartta: 'Jääkartta (Copernicus/FMI)', vk_tilasto: 'Vedenkorkeustilasto' };
+  for (const [k, t] of Object.entries(DATA.tila || {})) {
+    const tila = t.ok ? (t.kantaa_edellisesta ? 'edellisestä' : 'ok') : (t.kantaa_edellisesta ? 'ei laskettu' : 'virhe');
+    h += `<tr><td>${esc(nimet[k] || k)}</td><td>${esc(tila)}</td></tr>`;
+    if (!t.ok && t.virhe) h += `<tr><td colspan="2" class="hiljainen">${esc(t.virhe)}</td></tr>`;
+  }
+  h += '</table>';
+  if (DATA.jaa_malli && DATA.jaa_malli.dataset) h += `<p class="hiljainen">Jäämalli: ${esc(DATA.jaa_malli.dataset)}</p>`;
+  $('k-lahteet').innerHTML = h;
+}
+
+function korttiMittaukset() {
+  let h = `<h2>Omat mittaukset (${MITTAUKSET.length})</h2>`;
+  if (MITTAUKSET.length) {
+    h += '<table><tr><th>Aika</th><th>Jää</th><th>Lumi</th><th>Kohva</th><th></th></tr>';
+    MITTAUKSET.slice().sort((a, b) => b.t - a.t).forEach(m => {
+      h += `<tr><td>${pvmKlo(m.t)}<br><span class="pieni hiljainen">${m.lat != null ? fi(m.lat, 4) + ', ' + fi(m.lon, 4) + (m.gps ? '' : ' (ei GPS)') : 'ei sijaintia'}</span></td>
+        <td>${fi(m.jaa_cm)}</td><td>${fi(m.lumi_cm)}</td><td>${m.kohva ? 'kyllä' : ''}</td>
+        <td><button class="nappi toissijainen" style="min-height:40px;padding:4px 10px" data-poista="${m.t}">Poista</button></td></tr>`;
+    });
+    h += '</table>';
+  } else h += '<p class="hiljainen">Ei mittauksia.</p>';
+  h += `<div class="rivi" style="margin-top:10px">
+      <button class="nappi toissijainen" id="vie">Vie tiedostoksi</button>
+      <label class="nappi toissijainen" style="text-align:center;display:flex;align-items:center;justify-content:center;color:var(--pää);font-size:17px">Tuo tiedostosta<input type="file" id="tuo" accept="application/json,.json" hidden></label>
+    </div>
+    <p class="pieni hiljainen">Mittaukset ovat vain tässä puhelimessa. Varmuuskopio tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
+  $('k-mittaukset').innerHTML = h;
+  document.querySelectorAll('[data-poista]').forEach(b => b.onclick = () => {
+    if (!confirm('Poistetaanko mittaus?')) return;
+    MITTAUKSET = MITTAUKSET.filter(m => String(m.t) !== b.dataset.poista);
+    kirjoitaLS('pilkki_mittaukset', MITTAUKSET); piirra();
+  });
+  $('vie').onclick = () => {
+    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET }, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `pilkkitutka_mittaukset_${paivaAvain(Date.now())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  $('tuo').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      const uudet = (d.mittaukset || []).filter(m => m && isFinite(m.t) && isFinite(m.jaa_cm));
+      const olemassa = new Set(MITTAUKSET.map(m => m.t));
+      let n = 0; for (const m of uudet) if (!olemassa.has(m.t)) { MITTAUKSET.push(m); n++; }
+      kirjoitaLS('pilkki_mittaukset', MITTAUKSET); alert(`Tuotu ${n} mittausta.`); piirra();
+    } catch (err) { alert('Tiedostoa ei voitu lukea: ' + err.message); }
+  };
+}
+
+// --- piirto
+function piirra() {
+  if (!SIJ && ASET.paikka !== 'gps') asetaPaikka();
+  const c = konteksti();
+  const ika = DATA ? (Date.now() - aikaMs(DATA.haettu)) / 3600e3 : null;
+  $('otsikkotila').textContent = DATA ? `data ${fi(ika, ika < 10 ? 1 : 0)} h vanhaa · ${DATA_LAHDE}` : 'ei dataa';
+  const kortit = [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiJaa, korttiKasvu, korttiSaa, korttiTilasto, korttiLahteet];
+  for (const k of kortit) {
+    try { k(c); } catch (e) { console.error(k.name, e); }
+  }
+  try { korttiMittaukset(); } catch (e) { console.error('korttiMittaukset', e); }
+}
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('valittu', x === b));
+  document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'ruutu-' + b.dataset.ruutu);
+  window.scrollTo(0, 0);
+});
+
+(async function kaynnista() {
+  asetaPaikka();
+  await lataaData();
+  if (ASET.paikka !== 'gps') asetaPaikka();
+  piirra();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  setInterval(async () => { if (document.visibilityState === 'visible') { await lataaData(); piirra(); } }, 30 * 60e3);
+})();
+</script>
+</body>
+</html>
