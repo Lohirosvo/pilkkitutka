@@ -1,4 +1,5 @@
-/* Pilkkitutka – kartta.js v003 (23.11.2026)
+/* Pilkkitutka – kartta.js v004 (23.11.2026)
+ * v004: tilannekuvakerrokset – jää (Copernicus-malli), virta (0,5 m / ~5 m, 3 h välein), tuuli (HARMONIE) ja aikavalinta.
  * v003: reikäloki (vaihe 3): reiät kartalla syvyysnumerolla, väri pääkalan mukaan, aktiivinen reikä kultarenkaalla.
  * Kevyt oma karttanäkymä ilman ulkoisia kirjastoja, merilohitutkan kartta.js:n periaatteella:
  *  - OSM-pohjakartta (laatat tile.openstreetmap.org)
@@ -203,6 +204,27 @@
     }
     return out;
   }
+  // ------------------------------------------------------------ tilannekuvakerrosten värit
+  /** Jään väri paksuuden mukaan; peitto < 50 % = avovesi/ajojää [O luokat]. */
+  function jaaVari(paksuusCm, peittoPct) {
+    if (peittoPct != null && peittoPct < 15) return null;                       // ei jäätä: ei piirretä
+    if (peittoPct != null && peittoPct < 50) return 'rgba(30,60,200,0.35)';     // harva jää / avovettä
+    const p = paksuusCm == null ? 0 : paksuusCm;
+    if (p < 10) return 'rgba(230,40,40,0.38)';
+    if (p < 20) return 'rgba(255,140,0,0.36)';
+    if (p < 30) return 'rgba(255,220,0,0.34)';
+    if (p < 40) return 'rgba(120,220,90,0.32)';
+    return 'rgba(235,245,255,0.45)';
+  }
+  const JAA_SELITE = [['alle 10 cm', 'rgba(230,40,40,0.75)'], ['10–20', 'rgba(255,140,0,0.75)'], ['20–30', 'rgba(255,220,0,0.75)'],
+    ['30–40', 'rgba(120,220,90,0.75)'], ['yli 40', 'rgba(235,245,255,0.9)'], ['harva / avovesi', 'rgba(30,60,200,0.7)']];
+  /** Lähin aikaindeksi (ajat ISO-merkkijonoina tai päivinä). */
+  function lahinAika(ajat, ms) {
+    let paras = -1, pd = Infinity;
+    (ajat || []).forEach((a, i) => { const t = Date.parse(a.length <= 10 ? a + 'T12:00:00Z' : a); const d = Math.abs(t - ms); if (d < pd) { pd = d; paras = i; } });
+    return paras;
+  }
+
   const syvTeksti = m => !isFinite(m) ? '?' : (m >= 10 ? String(Math.round(m)) : String(Math.round(m * 10) / 10).replace('.', ','));
 
   // ------------------------------------------------------------ karttanäkymä (vain selaimessa)
@@ -217,6 +239,8 @@
       this.laatat = new Map(); this.w = 0; this.h = 0; this.dpr = 1;
       this.syvyys = [];            // puraSyvyys-tulokset
       this.jalki = []; this.pysahdykset = []; this.pisteet = []; this.reiat = []; this.aktiivinenId = null; this.gps = null; this.leiri = null;
+      this.kerrokset = { jaa: false, virta: false, tuuli: false }; this.aika = Date.now(); this.virtaTaso = 0;
+      this.jaaMalli = null; this.vesi = null; this.saa = null;
       this.seuraa = false; this.valittu = null;
       this.onTap = null; this.onLongPress = null; this.onMuutos = null;
       this._osoittimet = new Map(); this._piirtoPyydetty = false;
@@ -268,10 +292,13 @@
       g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       g.fillStyle = '#aad3df'; g.fillRect(0, 0, this.w, this.h);   // OSM:n veden sävy laattojen alle
       this._tausta();
+      if (this.kerrokset.jaa) this._jaaKerros();
       this._syvyys();
+      if (this.kerrokset.virta) this._virtaKerros();
       this._jalki();
       this._pysahdykset();
       this._reiat();
+      if (this.kerrokset.tuuli) this._tuuliKerros();
       this._leiri();
       this._pisteet();
       this._gps();
@@ -378,6 +405,89 @@
         }
       }
       g.restore();
+    }
+    /** Jääkerroksen lähde valitulle ajalle: jääkartta (havaintoihin perustuva) ±36 h sen päivästä, muuten malli. */
+    jaaLahde() {
+      const K = this.jaaKartta;
+      if (K && K.paksuus_cm && K.aika && Math.abs(Date.parse(K.aika + 'T12:00:00Z') - this.aika) <= 36 * 3600e3) return 'kartta';
+      const J = this.jaaMalli;
+      return J && J.lat && J.muuttujat ? 'malli' : null;
+    }
+    _jaaKerros() {
+      const lahde = this.jaaLahde(); if (!lahde) return;
+      let J, P, C;
+      if (lahde === 'kartta') {
+        J = this.jaaKartta; C = null;
+        P = J.paksuus_cm.map(r => r.map(v => (v == null || v <= 0) ? null : v));
+      } else {
+        J = this.jaaMalli;
+        const i = lahinAika(J.ajat, this.aika); if (i < 0) return;
+        P = J.muuttujat.paksuus_cm ? J.muuttujat.paksuus_cm.arvot[i] : null; C = J.muuttujat.peitto_pct ? J.muuttujat.peitto_pct.arvot[i] : null;
+      }
+      const dlat = Math.abs(J.lat[1] - J.lat[0]) || 1 / 60, dlon = Math.abs(J.lon[1] - J.lon[0]) || 1 / 36, g = this.g, A = this.nakyvaAlue();
+      for (let y = 0; y < J.lat.length; y++) {
+        if (J.lat[y] + dlat < A.lat_min || J.lat[y] - dlat > A.lat_max) continue;
+        for (let x = 0; x < J.lon.length; x++) {
+          if (J.lon[x] + dlon < A.lon_min || J.lon[x] - dlon > A.lon_max) continue;
+          const p = P ? P[y][x] : null, c = C ? C[y][x] : null;
+          if (p == null && c == null) continue;
+          const vari = jaaVari(p, c); if (!vari) continue;
+          // reunat pyöristetään samoihin pikseleihin naapurin kanssa: ei päällekkäisiä läpikuultavia saumoja
+          const [ax, ay] = this.ruutu(J.lat[y] + dlat / 2, J.lon[x] - dlon / 2), [bx, by] = this.ruutu(J.lat[y] - dlat / 2, J.lon[x] + dlon / 2);
+          const x0 = Math.round(ax), y0 = Math.round(Math.min(ay, by)), x1 = Math.round(bx), y1 = Math.round(Math.max(ay, by));
+          if (x1 <= x0 || y1 <= y0) continue;
+          g.fillStyle = vari; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+          if (this.z >= 12 && p != null && x1 - x0 > 34) {
+            g.fillStyle = 'rgba(10,30,70,0.85)'; g.font = '600 11px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.fillText(String(p), (x0 + x1) / 2, (y0 + y1) / 2);
+          }
+        }
+      }
+    }
+    _nuoli(x, y, suuntaAste, pituus, vari, leveys) {
+      const g = this.g, a = suuntaAste * Math.PI / 180, dx = Math.sin(a) * pituus, dy = -Math.cos(a) * pituus;
+      const x0 = x - dx / 2, y0 = y - dy / 2, x1 = x + dx / 2, y1 = y + dy / 2, k = Math.min(7, pituus * 0.45);
+      g.strokeStyle = vari; g.fillStyle = vari; g.lineWidth = leveys || 2; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - k * Math.sin(a - 0.45), y1 + k * Math.cos(a - 0.45));
+      g.lineTo(x1 - k * Math.sin(a + 0.45), y1 + k * Math.cos(a + 0.45)); g.closePath(); g.fill();
+    }
+    _virtaKerros() {
+      const V = this.vesi && this.vesi.virta; if (!V || this.z < 8) return;
+      const i = lahinAika(V.ajat, this.aika); if (i < 0) return;
+      const t = Math.min(this.virtaTaso, V.u.length - 1), U = V.u[t][i], W = V.v[t][i];
+      const g = this.g, varatut = new Set();
+      g.save();
+      for (let y = 0; y < V.lat.length; y++) for (let x = 0; x < V.lon.length; x++) {
+        const u = U[y][x], v = W[y][x]; if (u == null || v == null) continue;
+        const nop = Math.hypot(u, v); if (nop < 0.5) continue;
+        const [sx, sy] = this.ruutu(V.lat[y], V.lon[x]);
+        if (sx < -20 || sy < -20 || sx > this.w + 20 || sy > this.h + 20) continue;
+        const avain = Math.round(sx / 34) + ',' + Math.round(sy / 34); if (varatut.has(avain)) continue; varatut.add(avain);
+        const suunta = (Math.atan2(u, v) * 180 / Math.PI + 360) % 360, pit = Math.max(10, Math.min(34, 8 + nop * 3));
+        this._nuoli(sx, sy, suunta, pit, 'rgba(10,30,70,0.55)', 4);
+        this._nuoli(sx, sy, suunta, pit, nop >= 10 ? '#ff4081' : nop >= 5 ? '#ffc928' : '#4fd3ff', 2.2);
+      }
+      g.restore();
+    }
+    _tuuliKerros() {
+      const S = this.saa; if (!S) return;
+      const g = this.g;
+      for (const p of S) {
+        if (!p.ajat) continue;
+        let i = -1, pd = Infinity;
+        p.ajat.forEach((a, k) => { const d = Math.abs(Date.parse(a) - this.aika); if (d < pd) { pd = d; i = k; } });
+        if (i < 0 || pd > 2 * 3600e3 || p.wd[i] == null || p.ws[i] == null) continue;
+        const [x, y] = this.ruutu(p.lat_lahde, p.lon_lahde);
+        if (x < -40 || y < -40 || x > this.w + 40 || y > this.h + 40) continue;
+        const pit = Math.max(18, Math.min(48, 12 + p.ws[i] * 3));
+        this._nuoli(x, y, (p.wd[i] + 180) % 360, pit, 'rgba(10,30,70,0.6)', 6);
+        this._nuoli(x, y, (p.wd[i] + 180) % 360, pit, '#ffffff', 3);
+        g.save(); g.font = '800 12px system-ui, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+        const txt = Math.round(p.ws[i]) + (p.wg[i] != null ? '/' + Math.round(p.wg[i]) : '') + ' m/s';
+        g.lineWidth = 3; g.strokeStyle = 'rgba(10,30,70,0.85)'; g.strokeText(txt, x + 14, y + 16);
+        g.fillStyle = '#ffffff'; g.fillText(txt, x + 14, y + 16); g.restore();
+      }
     }
     _reiat() {
       const g = this.g, nyt = Date.now();
@@ -536,7 +646,7 @@
 
   const PilkkiKartta = { TILE, mx, my, mLat, mLon, etaisyysM, JALKI, jalkiLisaa, jalkiAlfa, jalkiOsat, PYSAHDYS, pysahdykset,
     puraSyvyys, MERKIT, REIKA, LAJIT, reikaViimeisin, aktiivinenReika, saalisYhteenveto, paalaji, lajiTeksti, yhteenvetoTeksti,
-    lajienSyvyydet, syvTeksti, Kartta };
+    lajienSyvyydet, syvTeksti, jaaVari, JAA_SELITE, lahinAika, Kartta };
   if (typeof module !== 'undefined' && module.exports) module.exports = PilkkiKartta;
   else root.PilkkiKartta = PilkkiKartta;
 })(typeof window !== 'undefined' ? window : this);

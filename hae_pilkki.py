@@ -34,8 +34,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v002"
-UA = "pilkkitutka/v002 (+https://lohirosvo.github.io/pilkkitutka/)"
+VERSIO = "v003"
+UA = "pilkkitutka/v003 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
 # Alue Kaskinen–Mikkelinsaaret [O: rajaus väljä, kattaa Kaskisen 62,33 ja Mikkelinsaarten 63,46]
@@ -69,7 +69,7 @@ SYVYYS_ALUEET = [
 # FMI:n place-haku valitsee lähimmän havaintoaseman (Maalahti -> 62,935 21,185 tarkistettu 23.11.2026)
 LAMPOPAIKAT = ["Maalahti", "Vaasa", "Kaskinen"]
 
-SAA_PARAMS = "Temperature,WindSpeedMS,WindGust,WindDirection,PrecipitationAmount,TotalCloudCover,Pressure"
+SAA_PARAMS = "Temperature,WindSpeedMS,WindGust,WindDirection,PrecipitationAmount,TotalCloudCover,Pressure,RadiationGlobal"
 PAIKALLINEN_UTC_SIIRTO_H = 2  # vuorokausijako talviajassa (EET)
 
 
@@ -314,7 +314,8 @@ def hae_saa(nyt):
             out.append({"nimi": p["nimi"], "lat_lahde": k[0], "lon_lahde": k[1], "ajat": ajat,
                         "T": tasaa("Temperature"), "ws": tasaa("WindSpeedMS"), "wg": tasaa("WindGust"),
                         "wd": tasaa("WindDirection", 0), "sade": sade, "sade_tulkinta": tulkinta,
-                        "pilvi": tasaa("TotalCloudCover", 0), "paine": tasaa("Pressure")})
+                        "pilvi": tasaa("TotalCloudCover", 0), "paine": tasaa("Pressure"),
+                        "sateily": tasaa("RadiationGlobal", 0)})
             print(f"  {p['nimi']}: {len(ajat)} tuntia ({ajat[0] if ajat else '-'} … {ajat[-1] if ajat else '-'}), sade {tulkinta}")
         except Exception as e:
             out.append({"nimi": p["nimi"], "virhe": f"{type(e).__name__}: {e}"[:300]})
@@ -397,13 +398,13 @@ def _koordinaatit(da):
     return latn, lonn
 
 
-def _avaa(ds_id, alku, loppu):
+def _avaa(ds_id, alku, loppu, **lisa):
     import copernicusmarine  # asennetaan työnkulussa
     return copernicusmarine.open_dataset(
         dataset_id=ds_id,
         minimum_longitude=ALUE["lon_min"], maximum_longitude=ALUE["lon_max"],
         minimum_latitude=ALUE["lat_min"], maximum_latitude=ALUE["lat_max"],
-        start_datetime=alku, end_datetime=loppu)
+        start_datetime=alku, end_datetime=loppu, **lisa)
 
 
 def hae_jaa_malli(nyt):
@@ -474,6 +475,97 @@ def hae_jaakartta(nyt):
                     "lon": [round(float(x), 4) for x in da[lonn].values],
                     "paksuus_cm": taulukko(a, k)}
     return {"dataset": ds_id, "aika": None, "huom": "ei jäätä viimeisen 7 vrk jääkartoissa"}
+
+
+# ---------------------------------------------------------------- veden lämpö ja virtaus (Copernicus) -> data/vesi.json
+# Hannu 23.11.2026: "Virtaus mm vedenkorkeusvaihtelun aiheuttama suunta ja voimakkuus, veden lämpötilasta mitä irti saa".
+# Malli 2 km: kapeat salmet ja lahdet eivät erotu – virtausta salmissa kuvaa sovelluksessa myös vedenkorkeuden muutosnopeus.
+VIRTA_TASOT_M = (0.5, 5.0)     # pinta ja noin 5 m [O]
+VIRTA_VALI_H = 3               # aikaväli kartalle ja aikajanalle
+VIRTA_HARVENNUS = 2            # joka toinen ruutu (~4 km) tiedoston koon vuoksi
+
+
+def lahin_taso_indeksi(syvyydet, tavoite):
+    return min(range(len(syvyydet)), key=lambda i: abs(float(syvyydet[i]) - tavoite))
+
+
+def virta_taulukoiksi(u, v, kerroin=100.0):
+    """u, v [aika][lat][lon] (m/s) -> kokonaisluvut cm/s, NaN -> None."""
+    return [taulukko(u[i], kerroin) for i in range(len(u))], [taulukko(v[i], kerroin) for i in range(len(v))]
+
+
+def hae_vesi(nyt, ulos_kansio):
+    import numpy as np
+    tulos = {"luotu": iso(nyt), "huom": "Copernicus BAL phy, 2 km malli; kapeat salmet eivät erotu. Ei navigointiin."}
+    virheet = []
+    # 1) lämpö: päiväkeskiarvot tästä päivästä 6 vrk, pinta ja pohja, täysi ruudukko (sisäsaariston ruudut säilyvät)
+    try:
+        ds = _avaa("cmems_mod_bal_phy_anfc_P1D-m", nyt.strftime("%Y-%m-%dT00:00:00"),
+                   (nyt + dt.timedelta(days=5)).strftime("%Y-%m-%dT23:59:59"), minimum_depth=0, maximum_depth=1)
+        vp = etsi_muuttuja(ds, {"sea_water_potential_temperature"}, ("thetao",))
+        vb = etsi_muuttuja(ds, {"sea_water_potential_temperature_at_sea_floor"}, ("bottomt", "bottom_t"))
+        if not vp and not vb:
+            raise RuntimeError(f"lämpömuuttujia ei löytynyt: {list(ds.data_vars)}")
+        lampo = {"dataset": "cmems_mod_bal_phy_anfc_P1D-m"}
+        for avain, v in (("pinta", vp), ("pohja", vb)):
+            if not v:
+                continue
+            da = ds[v]
+            latn, lonn = _koordinaatit(da)
+            for d in [d for d in da.dims if d not in ("time", latn, lonn)]:
+                da = da.isel({d: 0})
+            da = da.transpose("time", latn, lonn).load()
+            lampo[avain] = [taulukko(da.isel(time=i).values, 10.0) for i in range(da.sizes["time"])]   # 0,1 °C
+            lampo["ajat"] = [str(t)[:10] for t in da["time"].values]
+            tulos["lat"] = [round(float(x), 4) for x in da[latn].values]
+            tulos["lon"] = [round(float(x), 4) for x in da[lonn].values]
+        tulos["lampo"] = lampo
+        print(f"  lämpö: {len(lampo.get('ajat', []))} vrk, muuttujat {vp}, {vb}")
+    except Exception as e:
+        virheet.append(f"lämpö: {type(e).__name__}: {e}"[:300]); print(f"  lämpö: VIRHE {e}")
+    # 2) virtaus: tunneittain, 3 h välein 48 h eteenpäin, kaksi syvyyttä
+    try:
+        alku = nyt.replace(minute=0, second=0) - dt.timedelta(hours=3)
+        ds = _avaa("cmems_mod_bal_phy_anfc_PT1H-i", alku.strftime("%Y-%m-%dT%H:00:00"),
+                   (alku + dt.timedelta(hours=54)).strftime("%Y-%m-%dT%H:00:00"), minimum_depth=0, maximum_depth=6)
+        vu = etsi_muuttuja(ds, {"eastward_sea_water_velocity"}, ("uo",))
+        vv = etsi_muuttuja(ds, {"northward_sea_water_velocity"}, ("vo",))
+        if not vu or not vv:
+            raise RuntimeError(f"virtausmuuttujia ei löytynyt: {list(ds.data_vars)}")
+        du, dv = ds[vu], ds[vv]
+        latn, lonn = _koordinaatit(du)
+        syvn = next((d for d in du.dims if d not in ("time", latn, lonn)), None)
+        ajat = du["time"].values
+        valitut = [i for i, t in enumerate(ajat) if int(str(t)[11:13]) % VIRTA_VALI_H == 0]
+        tasot, uu, vvv = [], [], []
+        for tavoite in VIRTA_TASOT_M:
+            if syvn:
+                k = lahin_taso_indeksi(du[syvn].values, tavoite)
+                tasot.append(round(float(du[syvn].values[k]), 2))
+                a = du.isel({syvn: k, "time": valitut}); b = dv.isel({syvn: k, "time": valitut})
+            else:
+                tasot.append(0.0); a = du.isel(time=valitut); b = dv.isel(time=valitut)
+            a = a.transpose("time", latn, lonn).isel({latn: slice(None, None, VIRTA_HARVENNUS), lonn: slice(None, None, VIRTA_HARVENNUS)}).load()
+            b = b.transpose("time", latn, lonn).isel({latn: slice(None, None, VIRTA_HARVENNUS), lonn: slice(None, None, VIRTA_HARVENNUS)}).load()
+            u_, v_ = virta_taulukoiksi(a.values, b.values)
+            uu.append(u_); vvv.append(v_)
+        tulos["virta"] = {"dataset": "cmems_mod_bal_phy_anfc_PT1H-i", "yksikko": "cm/s", "tasot_m": tasot,
+                          "ajat": [str(ajat[i])[:16] + "Z" for i in valitut],
+                          "lat": [round(float(x), 4) for x in a[latn].values], "lon": [round(float(x), 4) for x in a[lonn].values],
+                          "u": uu, "v": vvv}
+        print(f"  virta: {len(valitut)} aikaa, tasot {tasot} m, ruudukko {len(tulos['virta']['lat'])}x{len(tulos['virta']['lon'])}")
+    except Exception as e:
+        virheet.append(f"virta: {type(e).__name__}: {e}"[:300]); print(f"  virta: VIRHE {e}")
+    if "lampo" not in tulos and "virta" not in tulos:
+        raise RuntimeError(" | ".join(virheet))
+    if virheet:
+        tulos["virheet"] = virheet
+    polku = os.path.join(ulos_kansio, "vesi.json")
+    with open(polku, "w", encoding="utf-8") as f:
+        json.dump(tulos, f, ensure_ascii=False, separators=(",", ":"))
+    kt = round(os.path.getsize(polku) / 1024)
+    print(f"  kirjoitettu {polku}: {kt} kt")
+    return {"polku": "data/vesi.json", "kt": kt, "lampo": "lampo" in tulos, "virta": "virta" in tulos, "virheet": virheet}
 
 
 # ---------------------------------------------------------------- syvyyskäyrät (Traficom, hae_syvyys.py)
@@ -605,6 +697,8 @@ def main(argv=None):
     data["jaakartta"] = vaihe("jaakartta", lambda: hae_jaakartta(nyt), ed.get("jaakartta"))
     data["syvyys_alueet"] = vaihe("syvyys", lambda: hae_syvyydet(os.path.dirname(os.path.abspath(args.ulos))),
                                   ed.get("syvyys_alueet"))
+    # epäonnistuessa työnkulku on jo kopioinut edellisen vesi.json:n paikalleen -> viittaus edelliseen
+    data["vesi"] = vaihe("vesi", lambda: hae_vesi(nyt, os.path.dirname(os.path.abspath(args.ulos))), ed.get("vesi"))
     if args.tilasto:
         data["vk_tilasto"] = vaihe("vk_tilasto", lambda: laske_tilasto(nyt), ed.get("vk_tilasto"))
     else:
