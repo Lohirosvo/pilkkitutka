@@ -1,4 +1,5 @@
-/* Pilkkitutka – kartta.js v005 (23.11.2026)
+/* Pilkkitutka – kartta.js v006 (24.11.2026)
+ * v006 (Hannu 24.11.: Lappajärvi, Varpula, Hirvijärvi omiin ikkunoihin): järvien syvyysruudukot (uistelututkasta) kuvana.
  * v005 (Hannu 23.11.: "Oma salmien mittaus kartalta ja nimeäminen. Arvo ja suunta kartalle salmen keskelle. Copernicus pohjan
  *   lämpödata kartalle … virtauksetkin voisi visualisoida mitä voi. Väylät ja merimerkit"):
  *   omat salmet (viiva, lahti, nuoli ja arvo), pohjan lämpö, virtaviiva-animaatio, Väyläviraston väylät ja turvalaitteet
@@ -233,6 +234,38 @@
     return [bl(q[0], q[1], q[2], q[3]), bl(q[4], q[5], q[6], q[7])];
   }
 
+  // ------------------------------------------------------------ järvien syvyysruudukot (uistelututkan jarvet.js -muoto)
+  const JARVI_VARIT = ['#d6efff', '#b0dcf7', '#86c4ec', '#5ea9de', '#3d8ecb', '#2774b4', '#195d9a', '#124a80', '#0d3a68', '#0a2d54', '#082343', '#061a33', '#051427', '#040f1e'];
+  function b64Tavut(t) {
+    if (typeof atob === 'function') { const r = atob(t), u = new Uint8Array(r.length); for (let i = 0; i < r.length; i++) u[i] = r.charCodeAt(i); return u; }
+    return new Uint8Array(Buffer.from(t, 'base64'));   // Node-testit
+  }
+  /** Luokkien rajat keskisyvyyksistä: b0 = 0, b(k+1) = 2·m(k) − b(k). */
+  function luokkaRajat(luokkaM) { const b = [0]; for (const m of luokkaM) b.push(Math.round((2 * m - b[b.length - 1]) * 100) / 100); return b; }
+  /** jarvisyvyys.js:n järvi -> { …, maski, luokka (Uint8Array), rajat, latEtela, lonIta }. */
+  function puraJarvi(tunnus, k) {
+    if (!k || !k.maski || !k.syvyysLuokat) return null;
+    const n = k.W * k.H, mb = b64Tavut(k.maski), sb = b64Tavut(k.syvyysLuokat);
+    const maski = new Uint8Array(n), luokka = new Uint8Array(n);
+    for (let q = 0; q < n; q++) {
+      maski[q] = (mb[q >> 3] >> (7 - (q & 7))) & 1;
+      const t = sb[q >> 1]; luokka[q] = (q & 1) ? (t & 15) : (t >> 4);
+    }
+    const latEtela = k.pohjoisLat - k.H * k.ruutu / 111320, latK = (k.pohjoisLat + latEtela) / 2;
+    return { tunnus, nimi: k.nimi, lahde: k.lahde, W: k.W, H: k.H, ruutu: k.ruutu, pohjoisLat: k.pohjoisLat, lansiLon: k.lansiLon,
+      luokkaM: k.luokkaM, anturiM: k.anturiM || 0, rajat: luokkaRajat(k.luokkaM), maski, luokka,
+      latEtela, lonIta: k.lansiLon + k.W * k.ruutu / (111320 * Math.cos(latK * Math.PI / 180)) };
+  }
+  /** Syvyys pisteessä: { luokka, min, max, m (keskikohta + anturi) } tai null (maa / ruudukon ulkopuolella). */
+  function jarviSyvyys(P, lat, lon) {
+    if (!P) return null;
+    const i = Math.floor((lon - P.lansiLon) * 111320 * Math.cos(lat * Math.PI / 180) / P.ruutu), j = Math.floor((P.pohjoisLat - lat) * 111320 / P.ruutu);
+    if (i < 0 || j < 0 || i >= P.W || j >= P.H) return null;
+    const q = j * P.W + i, l = P.luokka[q];
+    if (!P.maski[q] || l >= P.luokkaM.length) return null;
+    return { luokka: l, min: P.rajat[l] + P.anturiM, max: P.rajat[l + 1] + P.anturiM, m: P.luokkaM[l] + P.anturiM };
+  }
+
   // ------------------------------------------------------------ merkit
   const MERKIT = {
     ahven: { nimi: 'Ahven', kirjain: 'A', vari: '#2e7d32' },
@@ -350,6 +383,7 @@
       this.jaaMalli = null; this.vesi = null; this.saa = null;
       this.vaylat = [];            // puraVaylat-tulokset osa-alueittain
       this.salmet = []; this.salmiVirtaFn = null; this.salmiLuonnos = null; this.vainNapautus = false;
+      this.jarvet = [];            // puraJarvi-tulokset
       this.seuraa = false; this.valittu = null;
       this.onTap = null; this.onLongPress = null; this.onMuutos = null;
       this._osoittimet = new Map(); this._piirtoPyydetty = false;
@@ -403,6 +437,7 @@
       this._tausta();
       if (this.kerrokset.jaa) this._jaaKerros();
       else if (this.kerrokset.pohja) this._pohjaKerros();
+      this._jarviSyvyys();
       this._syvyys();
       if (this.kerrokset.vaylat) this._vaylat();
       if (this.kerrokset.virta) this._virtaKerros();
@@ -556,6 +591,25 @@
             g.fillText(String(p), (x0 + x1) / 2, (y0 + y1) / 2);
           }
         }
+      }
+    }
+    _jarviSyvyys() {
+      if (!this.jarvet.length || typeof document === 'undefined') return;
+      const g = this.g, A = this.nakyvaAlue();
+      for (const P of this.jarvet) {
+        if (P.latEtela > A.lat_max || P.pohjoisLat < A.lat_min || P.lonIta < A.lon_min || P.lansiLon > A.lon_max) continue;
+        if (!P.kuva) {
+          const c = document.createElement('canvas'); c.width = P.W; c.height = P.H;
+          const x = c.getContext('2d'), im = x.createImageData(P.W, P.H);
+          for (let q = 0; q < P.W * P.H; q++) {
+            const l = P.luokka[q]; if (!P.maski[q] || l >= P.luokkaM.length) continue;
+            const h = JARVI_VARIT[Math.min(l, JARVI_VARIT.length - 1)];
+            im.data[4 * q] = parseInt(h.slice(1, 3), 16); im.data[4 * q + 1] = parseInt(h.slice(3, 5), 16); im.data[4 * q + 2] = parseInt(h.slice(5, 7), 16); im.data[4 * q + 3] = 255;
+          }
+          x.putImageData(im, 0, 0); P.kuva = c;
+        }
+        const [x0, y0] = this.ruutu(P.pohjoisLat, P.lansiLon), [x1, y1] = this.ruutu(P.latEtela, P.lonIta);
+        g.save(); g.globalAlpha = 0.6; g.imageSmoothingEnabled = false; g.drawImage(P.kuva, x0, y0, x1 - x0, y1 - y0); g.restore();
       }
     }
     leveysKm() { return this.w / this.skaala() * 360 * 111.32 * Math.cos(this.lat * Math.PI / 180); }
@@ -967,7 +1021,7 @@
   const PilkkiKartta = { TILE, mx, my, mLat, mLon, etaisyysM, JALKI, jalkiLisaa, jalkiAlfa, jalkiOsat, PYSAHDYS, pysahdykset,
     puraSyvyys, MERKIT, REIKA, LAJIT, reikaViimeisin, aktiivinenReika, saalisYhteenveto, paalaji, lajiTeksti, yhteenvetoTeksti,
     lajienSyvyydet, syvTeksti, jaaVari, JAA_SELITE, lahinAika, puraVaylat, lahinVayla, merkkiTyyli, merkkiKuvaus, lampoVari,
-    LAMPO_ASTEIKKO, kayratJanalla, kentta, VirtaAnimaatio, Kartta };
+    LAMPO_ASTEIKKO, kayratJanalla, kentta, VirtaAnimaatio, luokkaRajat, puraJarvi, jarviSyvyys, JARVI_VARIT, Kartta };
   if (typeof module !== 'undefined' && module.exports) module.exports = PilkkiKartta;
   else root.PilkkiKartta = PilkkiKartta;
 })(typeof window !== 'undefined' ? window : this);

@@ -34,8 +34,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v004"
-UA = "pilkkitutka/v004 (+https://lohirosvo.github.io/pilkkitutka/)"
+VERSIO = "v005"
+UA = "pilkkitutka/v005 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
 # Alue Kaskinen–Mikkelinsaaret [O: rajaus väljä, kattaa Kaskisen 62,33 ja Mikkelinsaarten 63,46]
@@ -67,7 +67,25 @@ SYVYYS_ALUEET = [
 ]
 
 # FMI:n place-haku valitsee lähimmän havaintoaseman (Maalahti -> 62,935 21,185 tarkistettu 23.11.2026)
-LAMPOPAIKAT = ["Maalahti", "Vaasa", "Kaskinen"]
+# v005: järville Lappajärvi ja Seinäjoki [O: asema selviää lokista]
+LAMPOPAIKAT = ["Maalahti", "Vaasa", "Kaskinen", "Lappajärvi", "Seinäjoki"]
+
+# ---------------------------------------------------------------- järvet (Hannu 24.11.2026: Lappajärvi, Varpula, Hirvijärvi)
+# Asemat: Lappajärvi 2324 ja Hirvijärvi 2312 uistelututkan toimivasta koodista [T]; Varpula haetaan nimellä [O].
+# Keskipisteet: Lappajärvi ja Hirvijärvi uistelututkan jarvet.js [T], Varpula fi.wikipedia 62°47′57″N 23°08′19″E [T].
+SYKE_HYDRO = "https://rajapinnat.ymparisto.fi/api/Hydrologiarajapinta/1.0/odata/"
+JARVET = [
+    {"tunnus": "lappajarvi", "nimi": "Lappajärvi", "lat": 63.15651, "lon": 23.6699, "syke_id": 2324, "haku": "Lappajärvi"},
+    {"tunnus": "varpula", "nimi": "Varpulan tekojärvi", "lat": 62.7992, "lon": 23.1386, "syke_id": None, "haku": "Varpula"},
+    {"tunnus": "hirvijarvi", "nimi": "Hirvijärven tekojärvi", "lat": 62.8049, "lon": 23.0947, "syke_id": 2312, "haku": "Hirvijärvi"},
+]
+JARVI_HISTORIA_VUODET = 6
+JARVI_HISTORIA_UUSINTA_VRK = 30
+JARVI_TUORE_VRK = 120
+# Väylät järvelle (Väyläviraston aineisto kattaa myös sisävesiväylät) [O: vain Lappajärvellä on merkittyjä väyliä]
+VAYLA_LISA_ALUEET = [
+    {"nimi": "lappajarvi", "otsikko": "Lappajärvi", "alue": {"lat_min": 63.00, "lat_max": 63.32, "lon_min": 23.45, "lon_max": 23.90}},
+]
 
 SAA_PARAMS = "Temperature,WindSpeedMS,WindGust,WindDirection,PrecipitationAmount,TotalCloudCover,Pressure,RadiationGlobal"
 PAIKALLINEN_UTC_SIIRTO_H = 2  # vuorokausijako talviajassa (EET)
@@ -294,7 +312,7 @@ def hae_vk_ennuste(nyt):
 
 def hae_saa(nyt):
     out = []
-    for p in PISTEET:
+    for p in PISTEET + [{"nimi": j["nimi"], "lat": j["lat"], "lon": j["lon"], "jarvi": j["tunnus"]} for j in JARVET]:
         try:
             rivit = fmi_hae_ennuste("fmi::forecast::harmonie::surface::point::simple",
                                     {"latlon": f"{p['lat']},{p['lon']}", "timestep": 60,
@@ -311,7 +329,7 @@ def hae_saa(nyt):
                 return [pyor(m.get(t), d) for t in ajat]
 
             sade, tulkinta = muunna_sade(tasaa("PrecipitationAmount", 2))
-            out.append({"nimi": p["nimi"], "lat_lahde": k[0], "lon_lahde": k[1], "ajat": ajat,
+            out.append({"nimi": p["nimi"], "jarvi": p.get("jarvi"), "lat_lahde": k[0], "lon_lahde": k[1], "ajat": ajat,
                         "T": tasaa("Temperature"), "ws": tasaa("WindSpeedMS"), "wg": tasaa("WindGust"),
                         "wd": tasaa("WindDirection", 0), "sade": sade, "sade_tulkinta": tulkinta,
                         "pilvi": tasaa("TotalCloudCover", 0), "paine": tasaa("Pressure"),
@@ -601,7 +619,7 @@ def hae_vaylat_alueet(data_kansio):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import hae_vaylat
     tulos = []
-    for a in SYVYYS_ALUEET:
+    for a in SYVYYS_ALUEET + VAYLA_LISA_ALUEET:
         kansio = os.path.join(data_kansio, "vaylat", a["nimi"])
         os.makedirs(kansio, exist_ok=True)
         print(f"  {a['nimi']} ({a['otsikko']})")
@@ -617,6 +635,128 @@ def hae_vaylat_alueet(data_kansio):
         raise RuntimeError("yhdenkään osa-alueen väylät eivät onnistuneet: "
                            + " | ".join(str(r.get("viesti", "")) for r in tulos)[:400])
     return tulos
+
+
+# ---------------------------------------------------------------- järvien vedenkorkeus (SYKE Hydrologiarajapinta)
+
+def syke_json(polku, params=None):
+    url = SYKE_HYDRO + polku
+    if params:
+        url += "?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+    return json.loads(http_get(url, yrityksia=2, aikaraja=60))
+
+
+def syke_sivut(polku, params, enint=30000):
+    """OData-sivutus: seuraa odata.nextLinkiä, muuten $skip."""
+    out, skip, top = [], 0, int(params.get("$top", 1000))
+    while True:
+        d = syke_json(polku, dict(params, **{"$skip": skip}) if skip else params)
+        v = d.get("value", [])
+        out += v
+        seuraava = d.get("odata.nextLink") or d.get("@odata.nextLink")
+        if seuraava and len(out) < enint:
+            skip = len(out)
+            continue
+        if len(v) < top or len(out) >= enint:
+            return out
+        skip += len(v)
+
+
+def syke_asema(j, loki=print):
+    """-> {id, nimi, tila}. Tunnettu id tarkistetaan, muuten haetaan nimellä (vedenkorkeus = Suure_Id 1)."""
+    if j.get("syke_id"):
+        try:
+            v = syke_json("Paikka", {"$filter": f"Paikka_Id eq {j['syke_id']}"}).get("value", [])
+            if v:
+                return {"id": v[0]["Paikka_Id"], "nimi": v[0].get("Nimi"), "tila": v[0].get("Tila_Id")}
+            loki(f"    asemaa {j['syke_id']} ei löytynyt, haetaan nimellä")
+        except Exception as e:
+            loki(f"    aseman {j['syke_id']} tarkistus epäonnistui ({e}) – käytetään silti")
+            return {"id": j["syke_id"], "nimi": None, "tila": None}
+    v = syke_json("Paikka", {"$filter": f"substringof('{j['haku']}', Nimi) and Suure_Id eq 1"}).get("value", [])
+    loki(f"    ehdokkaat: " + "; ".join(f"{x.get('Paikka_Id')} {x.get('Nimi')} (tila {x.get('Tila_Id')})" for x in v)[:600])
+    if not v:
+        raise RuntimeError(f"vedenkorkeusasemaa ei löytynyt nimellä {j['haku']}")
+    v.sort(key=lambda x: (x.get("Tila_Id") != 1, "tekojärvi" not in str(x.get("Nimi", "")).lower(), x.get("Paikka_Id")))
+    return {"id": v[0]["Paikka_Id"], "nimi": v[0].get("Nimi"), "tila": v[0].get("Tila_Id")}
+
+
+def jarvi_paivat(rivit):
+    """SYKE-rivit -> {päivä: arvo cm}; sama päivä useasti -> viimeisin."""
+    out = {}
+    for r in rivit:
+        a, v = r.get("Aika"), r.get("Arvo")
+        if a is None or v is None:
+            continue
+        out[str(a)[:10]] = round(float(v), 1)
+    return out
+
+
+def jarvi_historia(paivat, nyt):
+    """Aiempien vuosien päivittäiset min / mediaani / max (avain KK-PP) ja kesän (15.6.–31.8.) mediaani."""
+    raja = (nyt - dt.timedelta(days=330)).strftime("%Y-%m-%d")
+    kertyma, kesa = {}, []
+    for d, v in paivat.items():
+        if d >= raja:
+            continue
+        kertyma.setdefault(d[5:], []).append(v)
+        if "06-15" <= d[5:] <= "08-31":
+            kesa.append(v)
+    def med(a):
+        a = sorted(a); n = len(a)
+        return a[n // 2] if n % 2 else (a[n // 2 - 1] + a[n // 2]) / 2
+    pv = {k: [min(a), round(med(a), 1), max(a), len(a)] for k, a in sorted(kertyma.items()) if len(a) >= 2}
+    return {"pv": pv, "kesa_med_cm": round(med(kesa), 1) if kesa else None, "vuosia": len({d[:4] for d in paivat if d < raja})}
+
+
+def hae_jarvet(nyt, vanha):
+    vanhat = {j.get("tunnus"): j for j in (vanha or []) if isinstance(j, dict)}
+    out, onnistui = [], 0
+    for j in JARVET:
+        print(f"  {j['nimi']}")
+        rivi = {k: j[k] for k in ("tunnus", "nimi", "lat", "lon")}
+        ed = vanhat.get(j["tunnus"]) or {}
+        try:
+            asema = syke_asema(j, loki=print)
+            rivi["asema"] = asema
+            try:
+                t = syke_json(f"VedenkTasoTieto(Paikka_Id={asema['id']},TasoKoordinaatisto='N60')", {"$format": "json"})
+                rivi["tasokorjaus_cm"] = t.get("Tasokorjaus") if isinstance(t, dict) else None
+            except Exception as e:
+                rivi["tasokorjaus_cm"] = ed.get("tasokorjaus_cm"); print(f"    tasokorjaus: {e}")
+            tuore = jarvi_paivat(syke_sivut("Vedenkorkeus", {
+                "$filter": f"Paikka_Id eq {asema['id']} and Aika ge datetime'{(nyt - dt.timedelta(days=JARVI_TUORE_VRK)):%Y-%m-%d}T00:00:00'",
+                "$orderby": "Aika asc", "$top": 1000}))
+            rivi["paivat"] = sorted(tuore.items())
+            hist = ed.get("historia")
+            ika = 999
+            if hist and hist.get("luotu"):
+                try:
+                    ika = (nyt - dt.datetime.fromisoformat(hist["luotu"].replace("Z", "+00:00"))).days
+                except Exception:
+                    ika = 999
+            if not hist or ika >= JARVI_HISTORIA_UUSINTA_VRK or (ed.get("asema") or {}).get("id") != asema["id"]:
+                kaikki = jarvi_paivat(syke_sivut("Vedenkorkeus", {
+                    "$filter": f"Paikka_Id eq {asema['id']} and Aika ge datetime'{nyt.year - JARVI_HISTORIA_VUODET}-01-01T00:00:00'",
+                    "$orderby": "Aika asc", "$top": 1000}))
+                hist = dict(jarvi_historia(kaikki, nyt), luotu=iso(nyt))
+                print(f"    historia: {len(kaikki)} vrk, {hist['vuosia']} vuotta, kesän mediaani {hist['kesa_med_cm']} cm")
+            rivi["historia"] = hist
+            viim = rivi["paivat"][-1] if rivi["paivat"] else None
+            print(f"    asema {asema['id']} {asema.get('nimi')}: {len(rivi['paivat'])} vrk, viimeisin {viim}, tasokorjaus {rivi.get('tasokorjaus_cm')}")
+            onnistui += 1
+        except Exception as e:
+            print(f"    VIRHE {e}")
+            rivi["virhe"] = f"{type(e).__name__}: {e}"[:300]
+            for k in ("asema", "tasokorjaus_cm", "paivat", "historia"):
+                if k in ed:
+                    rivi[k] = ed[k]
+            if ed.get("paivat"):
+                rivi["edellinen"] = True
+        out.append(rivi)
+    if onnistui == 0 and not any(r.get("paivat") for r in out):
+        raise RuntimeError("yhdenkään järven vedenkorkeus ei onnistunut")
+    return out
 
 
 # ---------------------------------------------------------------- 7. tilasto
@@ -725,6 +865,7 @@ def main(argv=None):
                                   ed.get("vaylat_alueet"))
     # epäonnistuessa työnkulku on jo kopioinut edellisen vesi.json:n paikalleen -> viittaus edelliseen
     data["vesi"] = vaihe("vesi", lambda: hae_vesi(nyt, os.path.dirname(os.path.abspath(args.ulos))), ed.get("vesi"))
+    data["jarvet"] = vaihe("jarvet", lambda: hae_jarvet(nyt, ed.get("jarvet")), ed.get("jarvet"))
     if args.tilasto:
         data["vk_tilasto"] = vaihe("vk_tilasto", lambda: laske_tilasto(nyt), ed.get("vk_tilasto"))
     else:
