@@ -1,4 +1,6 @@
-/* Pilkkitutka – kartta.js v006 (24.11.2026)
+/* Pilkkitutka – kartta.js v008 (24.11.2026)
+ * v008 (Hannu 24.11.: "Miksi ei käyriä kartoissa. Merellä on?"): järvien syvyyskäyrät samaan kerrokseen kuin meren käyrät, tummempi tyyli.
+ *      Omat Lowrance-käyrät (luotaus.js) ruskeina, pilkkipaikan rajaus katkoviivalla.
  * v006 (Hannu 24.11.: Lappajärvi, Varpula, Hirvijärvi omiin ikkunoihin): järvien syvyysruudukot (uistelututkasta) kuvana.
  * v005 (Hannu 23.11.: "Oma salmien mittaus kartalta ja nimeäminen. Arvo ja suunta kartalle salmen keskelle. Copernicus pohjan
  *   lämpödata kartalle … virtauksetkin voisi visualisoida mitä voi. Väylät ja merimerkit"):
@@ -480,12 +482,14 @@
     _syvyys() {
       if (this.z < 10 || !this.syvyys.length) return;
       const g = this.g, A = this.nakyvaAlue(), merkityt = new Set();
-      const tyyli = d => d <= 2 ? ['rgba(30,110,170,0.55)', 0.8] : d < 10 ? ['rgba(20,90,160,0.8)', 1.2]
+      const meri = d => d <= 2 ? ['rgba(30,110,170,0.55)', 0.8] : d < 10 ? ['rgba(20,90,160,0.8)', 1.2]
         : d < 20 ? ['rgba(10,70,140,0.85)', 1.5] : ['rgba(5,45,110,0.9)', 1.9];
+      const jarvi = d => d < 10 ? ['rgba(8,40,85,0.75)', 1.1] : ['rgba(4,25,60,0.85)', 1.5];   // järvillä syvyysvärien päällä tummempi
+      const oma = d => [Math.round(d * 10) % 15 === 0 ? 'rgba(120,45,0,0.95)' : 'rgba(150,70,10,0.8)', Math.round(d * 10) % 15 === 0 ? 1.6 : 1.0];   // omat luotaukset, 1,5 m välein paksumpi
       g.save(); g.lineJoin = 'round'; g.font = '600 11px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
       const nimiot = [];
       for (const S of this.syvyys) for (const taso of S.tasot) {
-        const [vari, lev] = tyyli(taso.syvyys);
+        const [vari, lev] = (S.oma ? oma : S.jarvi ? jarvi : meri)(taso.syvyys);
         g.strokeStyle = vari; g.lineWidth = lev; g.beginPath();
         for (const v of taso.viivat) {
           if (v.la1 < A.lat_min || v.la0 > A.lat_max || v.lo1 < A.lon_min || v.lo0 > A.lon_max) continue;
@@ -496,16 +500,22 @@
             if (mid === null && pit > 60) mid = [x, y];
             px = x; py = y;
           }
-          if (mid && pit > 140 && this.z >= 12) nimiot.push([taso.syvyys, mid[0], mid[1], vari]);
+          if (mid && pit > (S.oma ? 90 : 140) && this.z >= 12) nimiot.push([taso.syvyys, mid[0], mid[1], vari]);
         }
         g.stroke();
+      }
+      for (const S of this.syvyys) if (S.raja) {   // oman pilkkipaikan rajaus katkoviivalla
+        const R = S.raja, [x0, y0] = this.ruutu(R.la1, R.lo0), [x1, y1] = this.ruutu(R.la0, R.lo1);
+        if (x1 < 0 || y1 < 0 || x0 > this.w || y0 > this.h) continue;
+        g.setLineDash([6, 5]); g.strokeStyle = 'rgba(120,45,0,0.8)'; g.lineWidth = 1.2; g.strokeRect(x0, y0, x1 - x0, y1 - y0); g.setLineDash([]);
+        if (S.nimi && x1 - x0 > 60) { g.fillStyle = 'rgba(120,45,0,0.95)'; g.textAlign = 'left'; g.fillText(S.nimi, x0 + 4, y0 - 7); g.textAlign = 'center'; }
       }
       for (const [d, x, y] of nimiot) {   // numerot harvennettuina, ettei näyttö tukkeudu
         if (x < 12 || y < 12 || x > this.w - 12 || y > this.h - 12) continue;
         const avain = Math.round(x / 70) + ',' + Math.round(y / 40);
         if (merkityt.has(avain)) continue;
         merkityt.add(avain);
-        const txt = String(d).replace('.', ',');
+        const txt = (Math.round(d * 10) / 10).toString().replace('.', ',');
         g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(x - 3 - txt.length * 3.5, y - 7, txt.length * 7 + 6, 14);
         g.fillStyle = '#0a3d6e'; g.fillText(txt, x, y);
       }

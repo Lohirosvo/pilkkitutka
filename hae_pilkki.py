@@ -34,8 +34,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v006"
-UA = "pilkkitutka/v006 (+https://lohirosvo.github.io/pilkkitutka/)"
+VERSIO = "v007"
+UA = "pilkkitutka/v007 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
 # Alue Kaskinen–Mikkelinsaaret [O: rajaus väljä, kattaa Kaskisen 62,33 ja Mikkelinsaarten 63,46]
@@ -705,7 +705,7 @@ def syke_asema(j, loki=print):
         try:
             v = syke_json("Paikka", {"$filter": f"Paikka_Id eq {j['syke_id']}"}).get("value", [])
             if v:
-                return {"id": v[0]["Paikka_Id"], "nimi": v[0].get("Nimi"), "tila": v[0].get("Tila_Id")}
+                return {"id": v[0]["Paikka_Id"], "nimi": v[0].get("Nimi"), "tila": v[0].get("Tila_Id"), "kentat": _kentat(v[0])}
             loki(f"    asemaa {j['syke_id']} ei löytynyt, haetaan nimellä")
         except Exception as e:
             loki(f"    aseman {j['syke_id']} tarkistus epäonnistui ({e}) – käytetään silti")
@@ -715,7 +715,23 @@ def syke_asema(j, loki=print):
     if not v:
         raise RuntimeError(f"vedenkorkeusasemaa ei löytynyt nimellä {j['haku']}")
     v.sort(key=lambda x: (x.get("Tila_Id") != 1, "tekojärvi" not in str(x.get("Nimi", "")).lower(), x.get("Paikka_Id")))
-    return {"id": v[0]["Paikka_Id"], "nimi": v[0].get("Nimi"), "tila": v[0].get("Tila_Id")}
+    return {"id": v[0]["Paikka_Id"], "nimi": v[0].get("Nimi"), "tila": v[0].get("Tila_Id"), "kentat": _kentat(v[0])}
+
+
+def _kentat(rec):
+    """Aseman yksinkertaiset kentät talteen (korkeusjärjestelmän selvittämiseksi, 24.11.2026)."""
+    return {k: v for k, v in rec.items() if not isinstance(v, (dict, list)) and not str(k).startswith("odata")}
+
+
+def tasokorjaus(t):
+    """VedenkTasoTieto-vastaus -> Tasokorjaus (cm) tai None; vastaus voi olla olio tai {"value": [...]}."""
+    if isinstance(t, dict) and isinstance(t.get("value"), list):
+        t = t["value"][0] if t["value"] else {}
+    if isinstance(t, dict):
+        for k, v in t.items():
+            if str(k).lower() == "tasokorjaus" and isinstance(v, (int, float)):
+                return v
+    return None
 
 
 def jarvi_paivat(rivit):
@@ -743,7 +759,23 @@ def jarvi_historia(paivat, nyt):
         a = sorted(a); n = len(a)
         return a[n // 2] if n % 2 else (a[n // 2 - 1] + a[n // 2]) / 2
     pv = {k: [min(a), round(med(a), 1), max(a), len(a)] for k, a in sorted(kertyma.items()) if len(a) >= 2}
-    return {"pv": pv, "kesa_med_cm": round(med(kesa), 1) if kesa else None, "vuosia": len({d[:4] for d in paivat if d < raja})}
+    return {"pv": pv, "kesa_med_cm": round(med(kesa), 1) if kesa else None, "vuosia": len({d[:4] for d in paivat if d < raja}),
+            "sarja": jarvi_sarja(paivat)}
+
+
+def jarvi_sarja(paivat):
+    """Koko päiväsarja tiiviisti {alku, cm: [..]} (puuttuva päivä = None). v006 (Hannu 24.11.2026): Lowrance-tallenteiden
+    vedenkorkeuskorjaus tarvitsee tallennuspäivän vedenkorkeuden, myös yli 120 vrk vanhoille tallenteille."""
+    if not paivat:
+        return None
+    pv = sorted(paivat)
+    a, b = dt.date.fromisoformat(pv[0]), dt.date.fromisoformat(pv[-1])
+    cm, d = [], a
+    while d <= b:
+        v = paivat.get(d.isoformat())
+        cm.append(None if v is None else int(round(v)))
+        d += dt.timedelta(days=1)
+    return {"alku": pv[0], "cm": cm}
 
 
 def hae_jarvet(nyt, vanha):
@@ -756,11 +788,16 @@ def hae_jarvet(nyt, vanha):
         try:
             asema = syke_asema(j, loki=print)
             rivi["asema"] = asema
-            try:
-                t = syke_json(f"VedenkTasoTieto(Paikka_Id={asema['id']},TasoKoordinaatisto='N60')", {"$format": "json"})
-                rivi["tasokorjaus_cm"] = t.get("Tasokorjaus") if isinstance(t, dict) else None
-            except Exception as e:
-                rivi["tasokorjaus_cm"] = ed.get("tasokorjaus_cm"); print(f"    tasokorjaus: {e}")
+            # Korkeusjärjestelmä (Hannu 24.11.: Hirvijärven luotauskartta tehty peruskartan pinnasta 88,7 m) -> molemmat järjestelmät
+            rivi["tasotieto"] = {}
+            for jarj, avain in (("N60", "tasokorjaus_cm"), ("N2000", "tasokorjaus_n2000_cm")):
+                try:
+                    t = syke_json(f"VedenkTasoTieto(Paikka_Id={asema['id']},TasoKoordinaatisto='{jarj}')", {"$format": "json"})
+                    rivi[avain] = tasokorjaus(t)
+                    rivi["tasotieto"][jarj] = json.dumps(t, ensure_ascii=False)[:400]
+                except Exception as e:
+                    rivi[avain] = ed.get(avain); rivi["tasotieto"][jarj] = f"virhe: {e}"[:200]
+                print(f"    tasotieto {jarj}: {rivi['tasotieto'][jarj][:200]}")
             tuore = jarvi_paivat(syke_sivut("Vedenkorkeus", {
                 "$filter": f"Paikka_Id eq {asema['id']} and Aika ge datetime'{(nyt - dt.timedelta(days=JARVI_TUORE_VRK)):%Y-%m-%d}T00:00:00'",
                 "$orderby": "Aika asc", "$top": 1000}))
@@ -772,7 +809,7 @@ def hae_jarvet(nyt, vanha):
                     ika = (nyt - dt.datetime.fromisoformat(hist["luotu"].replace("Z", "+00:00"))).days
                 except Exception:
                     ika = 999
-            if not hist or ika >= JARVI_HISTORIA_UUSINTA_VRK or (ed.get("asema") or {}).get("id") != asema["id"]:
+            if not hist or ika >= JARVI_HISTORIA_UUSINTA_VRK or (ed.get("asema") or {}).get("id") != asema["id"] or "sarja" not in hist:
                 kaikki = jarvi_paivat(syke_sivut("Vedenkorkeus", {
                     "$filter": f"Paikka_Id eq {asema['id']} and Aika ge datetime'{nyt.year - JARVI_HISTORIA_VUODET}-01-01T00:00:00'",
                     "$orderby": "Aika asc", "$top": 1000}))
