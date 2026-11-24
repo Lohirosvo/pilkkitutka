@@ -34,8 +34,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v005"
-UA = "pilkkitutka/v005 (+https://lohirosvo.github.io/pilkkitutka/)"
+VERSIO = "v006"
+UA = "pilkkitutka/v006 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
 # Alue Kaskinen–Mikkelinsaaret [O: rajaus väljä, kattaa Kaskisen 62,33 ja Mikkelinsaarten 63,46]
@@ -73,7 +73,15 @@ LAMPOPAIKAT = ["Maalahti", "Vaasa", "Kaskinen", "Lappajärvi", "Seinäjoki"]
 # ---------------------------------------------------------------- järvet (Hannu 24.11.2026: Lappajärvi, Varpula, Hirvijärvi)
 # Asemat: Lappajärvi 2324 ja Hirvijärvi 2312 uistelututkan toimivasta koodista [T]; Varpula haetaan nimellä [O].
 # Keskipisteet: Lappajärvi ja Hirvijärvi uistelututkan jarvet.js [T], Varpula fi.wikipedia 62°47′57″N 23°08′19″E [T].
-SYKE_HYDRO = "https://rajapinnat.ymparisto.fi/api/Hydrologiarajapinta/1.0/odata/"
+# 24.11.2026: 1.0 ei vastannut hakuajolle eikä uistelututkalle ("Network error (Paikka)"). Nykyversio on 1.2 (Syke 11.5.2026) [T],
+# toimiva esimerkki: github.com/anttirauhala/water-temperature-lambda käyttää .../1.2/odata [T]. Kokeillaan järjestyksessä.
+SYKE_HYDRO_OSOITTEET = [
+    "https://rajapinnat.ymparisto.fi/api/Hydrologiarajapinta/1.2/odata/",
+    "https://rajapinnat.ymparisto.fi/api/Hydrologiarajapinta/1.1/odata/",
+    "https://rajapinnat.ymparisto.fi/api/Hydrologiarajapinta/1.0/odata/",
+]
+SYKE_HYDRO = SYKE_HYDRO_OSOITTEET[0]
+_SYKE_TOIMIVA = None
 JARVET = [
     {"tunnus": "lappajarvi", "nimi": "Lappajärvi", "lat": 63.15651, "lon": 23.6699, "syke_id": 2324, "haku": "Lappajärvi"},
     {"tunnus": "varpula", "nimi": "Varpulan tekojärvi", "lat": 62.7992, "lon": 23.1386, "syke_id": None, "haku": "Varpula"},
@@ -131,11 +139,11 @@ def poimi_fmi_virhe(teksti):
     return teksti[:300]
 
 
-def http_get(url, yrityksia=3, aikaraja=90):
+def http_get(url, yrityksia=3, aikaraja=90, otsakkeet=None):
     viimeisin = "tuntematon virhe"
     for i in range(yrityksia):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            req = urllib.request.Request(url, headers=dict({"User-Agent": UA}, **(otsakkeet or {})))
             with urllib.request.urlopen(req, timeout=aikaraja) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
@@ -640,10 +648,39 @@ def hae_vaylat_alueet(data_kansio):
 # ---------------------------------------------------------------- järvien vedenkorkeus (SYKE Hydrologiarajapinta)
 
 def syke_json(polku, params=None):
-    url = SYKE_HYDRO + polku
-    if params:
-        url += "?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
-    return json.loads(http_get(url, yrityksia=2, aikaraja=60))
+    """Kokeilee rajapintaversiot järjestyksessä; ensimmäinen toimiva lukitaan tämän ajon ajaksi."""
+    global _SYKE_TOIMIVA
+    virheet = []
+    for base in ([_SYKE_TOIMIVA] if _SYKE_TOIMIVA else SYKE_HYDRO_OSOITTEET):
+        try:
+            d = syke_json_osoitteesta(base, polku, params)
+            if _SYKE_TOIMIVA != base:
+                print(f"    SYKE-rajapinta: {base}")
+            _SYKE_TOIMIVA = base
+            return d
+        except Exception as e:
+            virheet.append(f"{base.rstrip('/').split('/')[-2]}: {e}"[:220])
+    raise RuntimeError(" | ".join(virheet))
+
+
+def syke_json_osoitteesta(base, polku, params=None):
+    """OData JSON. 24.11.2026 ensimmäinen ajo: kaikki järvet epäonnistuivat, syy ei näkynyt (vain lokissa).
+    Pyydetään JSON Accept-otsakkeella; jos vastaus ei ole JSONia, uudelleen $format=json. Virheeseen alku vastauksesta."""
+    def hae(pp):
+        url = base + polku + ("?" + urllib.parse.urlencode(pp, quote_via=urllib.parse.quote, safe="$") if pp else "")
+        return http_get(url, yrityksia=2, aikaraja=60, otsakkeet={"Accept": "application/json"})
+    raaka = hae(params)
+    try:
+        return json.loads(raaka)
+    except ValueError:
+        alku = raaka[:160].decode("utf-8", "replace").replace("\n", " ")
+        if params and "$format" in params:
+            raise RuntimeError(f"ei JSON-vastaus: {alku}")
+        raaka2 = hae(dict(params or {}, **{"$format": "json"}))
+        try:
+            return json.loads(raaka2)
+        except ValueError:
+            raise RuntimeError(f"ei JSON-vastaus ({polku}): {alku}")
 
 
 def syke_sivut(polku, params, enint=30000):
@@ -742,6 +779,8 @@ def hae_jarvet(nyt, vanha):
                 hist = dict(jarvi_historia(kaikki, nyt), luotu=iso(nyt))
                 print(f"    historia: {len(kaikki)} vrk, {hist['vuosia']} vuotta, kesän mediaani {hist['kesa_med_cm']} cm")
             rivi["historia"] = hist
+            osat = (_SYKE_TOIMIVA or "").rstrip("/").split("/")
+            rivi["rajapinta"] = osat[-2] if len(osat) >= 2 else None
             viim = rivi["paivat"][-1] if rivi["paivat"] else None
             print(f"    asema {asema['id']} {asema.get('nimi')}: {len(rivi['paivat'])} vrk, viimeisin {viim}, tasokorjaus {rivi.get('tasokorjaus_cm')}")
             onnistui += 1
@@ -755,7 +794,7 @@ def hae_jarvet(nyt, vanha):
                 rivi["edellinen"] = True
         out.append(rivi)
     if onnistui == 0 and not any(r.get("paivat") for r in out):
-        raise RuntimeError("yhdenkään järven vedenkorkeus ei onnistunut")
+        raise RuntimeError("yhdenkään järven vedenkorkeus ei onnistunut: " + " | ".join(f"{r['nimi']}: {r.get('virhe')}" for r in out)[:450])
     return out
 
 
