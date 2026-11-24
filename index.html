@@ -255,7 +255,7 @@
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v006';
+const VERSIO = 'v007';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -2138,10 +2138,15 @@ const ALUEET = {
   meri: { nimi: 'Meri', tyyppi: 'meri', kartta: { lat: 62.972, lon: 21.488, z: 12 } },
   lappajarvi: { nimi: 'Lappajärvi', tyyppi: 'jarvi', lat: 63.15651, lon: 23.6699, kartta: { lat: 63.15651, lon: 23.6699, z: 11 }, syvyys: 'lappajarvi',
     kesapinta: false, saannostely: null },
-  varpula: { nimi: 'Varpula', tyyppi: 'jarvi', lat: 62.7992, lon: 23.1386, kartta: { lat: 62.7992, lon: 23.1386, z: 13 }, syvyys: null,
-    saannostely: 'Säännöstelyväli 4 m, pinta-ala 4,1 km², suurin syvyys 5,5 m (ELY)' },
+  // Hannu 24.11.2026: C-MAP-kartantekokorkeus = peruskartan 91,6 m (uudessa peruskartassa 92,3), rantaviiva paikallaan.
+  varpula: { nimi: 'Varpula', tyyppi: 'jarvi', lat: 62.7992, lon: 23.1386, kartta: { lat: 62.80, lon: 23.145, z: 13 }, syvyys: 'varpula',
+    karttaTasoCm: 9160, karttaTasoNimi: 'C-MAP-kartantekokorkeus 91,60 m',
+    saannostely: 'Säännöstelyväli 4 m, pinta-ala 4,1 km², suurin syvyys 5,5 m (ELY); peruskartta 91,6 m, uudempi 92,3 m' },
+  // Hannu 24.11.2026: luotauskartta (C-MAP) on korjattu ennen latausta C-MAP:n kartantekokorkeuteen 88,7 m.
+  // Oletus [O]: sama asteikko kuin SYKE:n Hirvijärven asemalla (2312). Peruskartta 1983: 88,6, säännöstely 84,14–88,84.
   hirvijarvi: { nimi: 'Hirvijärvi', tyyppi: 'jarvi', lat: 62.8049, lon: 23.0947, kartta: { lat: 62.8049, lon: 23.0947, z: 12.5 }, syvyys: 'hirvijarvi',
-    kesapinta: true, saannostely: 'Säännöstelyväli 4,7 m, pinta-ala 15,3 km², suurin syvyys 6,5 m (ELY)' },
+    karttaTasoCm: 8870, karttaTasoNimi: 'C-MAP-kartantekokorkeus 88,70 m',
+    saannostely: 'Säännöstelyväli 4,7 m (ELY); peruskartta 1983: rajat 84,14–88,84 m. Pinta-ala 15,3 km², suurin syvyys 6,5 m (ELY)' },
 };
 if (!ALUEET[ASET.alue]) ASET.alue = 'meri';
 const alue = () => ALUEET[ASET.alue] || ALUEET.meri;
@@ -2152,10 +2157,13 @@ const V = () => VAKIO[onJarvi() ? 'jarvi' : 'meri'];
 function jarviData(tunnus) { return (DATA && Array.isArray(DATA.jarvet) && DATA.jarvet.find(j => j.tunnus === (tunnus || ASET.alue))) || null; }
 /** Järven päivittäinen sarja [[ms, cm]] (klo 12 UTC), raaka-asteikko. */
 function jarviSarja(J) { return J && Array.isArray(J.paivat) ? J.paivat.filter(p => p[1] != null).map(([d, v]) => [Date.parse(d + 'T12:00:00Z'), v]) : []; }
-/** Näyttö: m N60, jos tasokorjaus tunnetaan, muuten asteikon cm. */
+/** Näyttö: m N60, jos tasokorjaus tunnetaan. 24.11.2026 ensimmäinen haku: SYKE antaa arvot cm:nä korkeusjärjestelmässä
+ *  (Lappajärvi 6985, Varpula 9191, Hirvijärvi 8861; Varpula ≈ 3,3 m Hirvijärveä ylempänä, ELY: noin 3 m) ilman tasokorjausta
+ *  -> metreinä ilman järjestelmän nimeä. Pienet luvut (< 1000) ovat asteikon cm. */
 function jarviTaso(J, cm) {
   if (cm == null) return '–';
-  return J && J.tasokorjaus_cm != null ? fi((cm + J.tasokorjaus_cm) / 100, 2) + ' m N60' : fi(cm) + ' cm (asteikko)';
+  if (J && J.tasokorjaus_cm != null) return fi((cm + J.tasokorjaus_cm) / 100, 2) + ' m N60';
+  return Math.abs(cm) >= 1000 ? fi(cm / 100, 2) + ' m' : fi(cm) + ' cm (asteikko)';
 }
 function jarviLahin(lat, lon, maxKm = 15) {
   let paras = null;
@@ -2166,12 +2174,15 @@ function jarviLahin(lat, lon, maxKm = 15) {
   }
   return paras;
 }
-/** Kesän mediaanin ja nykytason ero (m, + = nyt alempana) – syvyyskartan korjaus [L]. */
+/** Syvyyskartan vertailutason ja nykytason ero (m, + = vesi nyt alempana) [L]. Vertailutaso: järven
+ *  kartantekokorkeus, jos tiedossa (Hirvijärvi), muuten kesän mediaani [O]. */
 function jarviPainuma(J) {
-  const S = jarviSarja(J), h = J && J.historia;
-  if (!S.length || !h || h.kesa_med_cm == null) return null;
-  return (h.kesa_med_cm - S[S.length - 1][1]) / 100;
+  const S = jarviSarja(J); if (!S.length) return null;
+  const a = J && ALUEET[J.tunnus], h = J && J.historia;
+  const ref = a && a.karttaTasoCm != null ? a.karttaTasoCm : h && h.kesa_med_cm != null ? h.kesa_med_cm : null;
+  return ref == null ? null : (ref - S[S.length - 1][1]) / 100;
 }
+const vertailuNimi = a => a.karttaTasoCm != null ? a.karttaTasoNimi : 'kesän mediaani';
 let JARVI_SYV_TILA = '';
 function lataaJarviSyvyys() {
   const kayta = () => {
@@ -2224,8 +2235,8 @@ function korttiJarviVesi(c) {
   if (tama) h += `<p class="pieni">Tähän aikaan ${J.historia.vuosia} edellisenä vuonna: ${jarviTaso(J, tama[0])} … ${jarviTaso(J, tama[2])}, mediaani ${jarviTaso(J, tama[1])}.
     Nyt ${fiEtumerkki(v - tama[1])} cm mediaanista ${tasoMerkki('laskettu')}</p>`;
   const pain = jarviPainuma(J);
-  if (pain != null && a.syvyys) h += `<p class="pieni">${a.kesapinta ? 'Syvyyskartta on kesäpinnan tasolla' : 'Syvyyskartan vertailutaso ei ole tiedossa; kesäpinnasta'}:
-    vesi on nyt <b>${fi(Math.abs(pain), 2)} m ${pain >= 0 ? 'alempana' : 'ylempänä'}</b> kuin kesän mediaani ${tasoMerkki(a.kesapinta ? 'laskettu' : 'oletus')}.
+  if (pain != null && a.syvyys) h += `<p class="pieni">${a.karttaTasoCm != null ? 'Syvyyskartta on ' + esc(a.karttaTasoNimi) + ':' : 'Syvyyskartan vertailutaso ei ole tiedossa; kesän mediaanista:'}
+    vesi on nyt <b>${fi(Math.abs(pain), 2)} m ${pain >= 0 ? 'alempana' : 'ylempänä'}</b> ${tasoMerkki(a.karttaTasoCm != null ? 'laskettu' : 'oletus')}.
     ${pain >= 0 ? 'Vähennä kartan syvyyksistä.' : 'Lisää kartan syvyyksiin.'}</p>`;
   if (a.saannostely) h += `<p class="pieni">${esc(a.saannostely)} ${tasoMerkki('lähde')}</p>`;
   // kaavio: 60 vrk + aiempien vuosien vaihteluväli
@@ -2238,7 +2249,7 @@ function korttiJarviVesi(c) {
   }
   h += viivakaavio({ nimi: 'järven vedenkorkeus', korkeus: 170, nyt: c.nyt, sarjat: [{ p: med, vari: 'var(--hiljainen)', katko: true, leveys: 1.4 }, { p, vari: VARI.vesi }],
     viivat: [], vyo, kerroin: 1, desim: 0 });
-  h += `<div class="selite"><span style="--c:var(--vari-vesi)">mitattu (cm, asteikko)</span><span style="--c:var(--hiljainen)">mediaani</span><span>vyö = aiempien vuosien vaihteluväli</span></div>
+  h += `<div class="selite"><span style="--c:var(--vari-vesi)">mitattu (cm)</span><span style="--c:var(--hiljainen)">mediaani</span><span>vyö = aiempien vuosien vaihteluväli</span></div>
     <p class="pieni hiljainen">SYKE:n Hydrologiarajapinta, päiväarvot. Tekojärvessä vedenpinnan nopea muutos rasittaa jääpeitettä: rannoilla ja matalikoilla jää voi haljeta tai jäädä onton päälle.</p>`;
   $('k-vedenkorkeus').innerHTML = h;
 }
@@ -2248,10 +2259,10 @@ function naytaJarviKohta(lat, lon) {
   const P = KARTTA && KARTTA.jarvet.find(x => x.tunnus === a.syvyys), d = P ? PK.jarviSyvyys(P, lat, lon) : null;
   const J = jarviData(), pain = jarviPainuma(J);
   if (d) {
-    rivit.push(`Syvyys kartalla <b>${fi(d.min, d.min % 1 ? 1 : 0)}–${fi(d.max, d.max % 1 ? 1 : 0)} m</b> <span class="hiljainen">(${a.kesapinta ? 'kesäpinta' : 'vertailutaso ei tiedossa'})</span>`);
+    rivit.push(`Syvyys kartalla <b>${fi(d.min, d.min % 1 ? 1 : 0)}–${fi(d.max, d.max % 1 ? 1 : 0)} m</b> <span class="hiljainen">(${esc(vertailuNimi(a))})</span>`);
     if (pain != null) {
       const a0 = Math.max(0, d.min - pain), a1 = Math.max(0, d.max - pain);
-      rivit.push(`Nykyisellä vedellä noin <b>${fi(a0, 1)}–${fi(a1, 1)} m</b> ${tasoMerkki(a.kesapinta ? 'laskettu' : 'oletus')}` + (a1 <= 0.3 ? ' – <b>voi olla kuivillaan tai jäässä pohjaan</b>' : ''));
+      rivit.push(`Nykyisellä vedellä noin <b>${fi(a0, 1)}–${fi(a1, 1)} m</b> ${tasoMerkki(a.karttaTasoCm != null ? 'laskettu' : 'oletus')}` + (a1 <= 0.3 ? ' – <b>voi olla kuivillaan tai jäässä pohjaan</b>' : ''));
     }
   } else if (P) rivit.push('<span class="hiljainen">Kohta ei ole syvyysruudukon vesialuetta.</span>');
   else rivit.push(`<span class="hiljainen">${a.syvyys ? 'Syvyysruudukkoa ladataan…' : 'Tälle järvelle ei ole syvyysaineistoa.'}</span>`);
@@ -2296,7 +2307,7 @@ function piirra() {
   for (const id of ['k-jaa', 'k-tilasto', 'k-vesilampo']) { const e = $(id); if (e) e.hidden = jarvi; }
   document.title = jarvi ? `Pilkkitutka – ${alue().nimi}` : 'Pilkkitutka';
   const attr = $('karttaattr'); if (attr) attr.textContent = jarvi
-    ? '© OpenStreetMap-tekijät · syvyys ' + (alue().syvyys === 'hirvijarvi' ? 'oma luotaus' : alue().syvyys ? '© Maanmittauslaitos' : '–') + ' · vedenkorkeus SYKE · ei navigointiin'
+    ? '© OpenStreetMap-tekijät · syvyys ' + (alue().syvyys === 'lappajarvi' ? '© Maanmittauslaitos' : alue().syvyys ? 'oma C-MAP-luotaus' : '–') + ' · vedenkorkeus SYKE · ei navigointiin'
     : '© OpenStreetMap-tekijät · syvyys Traficom · väylät Väylävirasto · jää, virta Copernicus · ei navigointiin';
   const kortit = jarvi ? [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiKasvu, korttiSaa, korttiLahteet]
     : [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiJaa, korttiKasvu, korttiSaa, korttiTilasto, korttiLahteet];
