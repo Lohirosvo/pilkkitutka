@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pilkkilogistiikka Pro 4.0 — Erä Edition</title>
+<style>
+  :root {
+    --bg: #0c130f;
+    --card: #131e18;
+    --card-alt: #18261f;
+    --border: #263b30;
+    --text: #eef4f0;
+    --muted: #8fa699;
+    --amber: #f59e0b;
+    --amber-dim: rgba(245, 158, 11, 0.15);
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.14);
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.15);
+    --copper: #d97706;
+    --teal: #2dd4bf;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { background: var(--bg); color: var(--text); padding: 12px; line-height: 1.4; max-width: 1120px; margin: 0 auto; }
+
+  /* HEADER & VAKIOPAIKAT */
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  h1 { font-size: 1.3rem; color: var(--amber); letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .subtitle { font-size: 0.78rem; color: var(--muted); }
+
+  .spot-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; align-items: center; }
+  .spot-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 7px 11px; border-radius: 7px; font-size: 0.8rem; cursor: pointer; transition: 0.15s; font-weight: 500; }
+  .spot-btn:hover { border-color: var(--amber); }
+  .spot-btn.active { background: var(--amber); color: #0c130f; font-weight: 700; border-color: var(--amber); }
+  .spot-save { background: transparent; color: var(--teal); border: 1px dashed var(--teal); padding: 6px 10px; border-radius: 7px; font-size: 0.76rem; cursor: pointer; }
+
+  /* PÄÄTÖSKORTTI (OLEELLINEN EDELLÄ) */
+  .hero { background: linear-gradient(145deg, #17271e 0%, #111a15 100%); border: 2px solid var(--green); border-radius: 12px; padding: 15px; margin-bottom: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .badge { display: inline-block; background: var(--green); color: #052e16; font-size: 0.7rem; font-weight: 800; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .hero-title { font-size: 1.35rem; font-weight: 800; margin-top: 5px; color: #fff; }
+  .hero-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+  .hero-score { font-size: 1.6rem; font-weight: 800; color: var(--green); text-align: right; line-height: 1; }
+  .hero-score span { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 12px; }
+  @media (min-width: 640px) { .kpi-row { grid-template-columns: repeat(4, 1fr); } }
+  .kpi { background: rgba(12, 19, 15, 0.7); border: 1px solid var(--border); border-radius: 8px; padding: 9px; }
+  .kpi-lbl { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .kpi-val { font-size: 1.1rem; font-weight: 800; margin-top: 2px; }
+  .kpi-desc { font-size: 0.69rem; color: var(--muted); margin-top: 1px; }
+
+  .alerts { display: flex; flex-direction: column; gap: 6px; margin-top: 11px; }
+  .alert-item { padding: 8px 10px; border-radius: 7px; font-size: 0.8rem; display: flex; align-items: flex-start; gap: 8px; }
+  .alert-stealth { background: rgba(45, 212, 191, 0.1); border: 1px solid rgba(45, 212, 191, 0.35); color: #ccfbf1; }
+  .alert-warn { background: var(--amber-dim); border: 1px solid rgba(245, 158, 11, 0.4); color: #fef3c7; }
+  .alert-danger { background: var(--red-dim); border: 1px solid rgba(239, 68, 68, 0.45); color: #fee2e2; }
+
+  /* LAYOUT */
+  .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 860px) { .grid { grid-template-columns: 360px 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .card h2 { font-size: 0.88rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--amber); margin-bottom: 11px; display: flex; justify-content: space-between; align-items: center; }
+
+  .control { margin-bottom: 11px; }
+  .control label { display: flex; justify-content: space-between; font-size: 0.81rem; color: #d1ded7; margin-bottom: 4px; }
+  .control label span.val { font-weight: 700; color: var(--amber); }
+  input[type="range"] { width: 100%; accent-color: var(--amber); height: 6px; background: #0c130f; border-radius: 4px; cursor: pointer; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 9px; }
+  select, input[type="number"], input[type="text"] { width: 100%; background: #0c130f; color: var(--text); border: 1px solid var(--border); padding: 7px 8px; border-radius: 6px; font-size: 0.81rem; }
+  .flbl { font-size: 0.73rem; color: var(--muted); margin-bottom: 3px; display: block; }
+
+  /* AVATTAVAT OSAT (PROGRESSIVE DISCLOSURE) */
+  details { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  summary { padding: 12px 14px; font-size: 0.88rem; font-weight: 700; color: var(--amber); cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.04em; background: var(--card-alt); }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "▼"; font-size: 0.72rem; color: var(--muted); transition: transform 0.2s; }
+  details[open] summary::after { transform: rotate(180deg); }
+  .det-body { padding: 14px; }
+
+  /* KUVAAJA & ZOOM */
+  .tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .tab { background: #0c130f; color: var(--muted); border: 1px solid var(--border); padding: 6px 9px; border-radius: 6px; font-size: 0.76rem; cursor: pointer; }
+  .tab.active { background: var(--amber); color: #0c130f; font-weight: 700; border-color: var(--amber); }
+  .zoom-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; background: #0c130f; padding: 7px 9px; border-radius: 7px; border: 1px solid var(--border); margin-bottom: 9px; }
+  .z-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 4px 8px; border-radius: 5px; font-size: 0.73rem; cursor: pointer; }
+  .z-btn.active { background: var(--teal); color: #0c130f; border-color: var(--teal); font-weight: 700; }
+  canvas { width: 100%; height: 295px; background: #080d0a; border-radius: 8px; border: 1px solid var(--border); display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; background: #0c130f; padding: 4px 7px; border-radius: 5px; border: 1px solid var(--border); cursor: pointer; }
+  .leg-item.off { opacity: 0.35; text-decoration: line-through; }
+  .leg-dot { width: 9px; height: 9px; border-radius: 50%; }
+
+  /* TAULUKKO */
+  table { width: 100%; border-collapse: collapse; font-size: 0.77rem; }
+  th { text-align: left; color: var(--muted); padding: 7px 5px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 5px; border-bottom: 1px solid #1b2b22; vertical-align: middle; }
+  tr.banned { opacity: 0.42; }
+  tr.best-row { background: rgba(34, 197, 94, 0.08); }
+  .bar-bg { width: 50px; height: 6px; background: #0c130f; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 4px; }
+  .bar-fill { height: 100%; }
+
+  /* GPS TUTKA */
+  .gps-box { text-align: center; padding: 12px; background: #0c130f; border-radius: 8px; border: 1px solid var(--border); }
+  .gps-btn { background: var(--teal); color: #0c130f; border: none; padding: 9px 14px; border-radius: 7px; font-weight: 800; font-size: 0.82rem; cursor: pointer; margin: 4px; }
+  .gps-dist { font-size: 2.1rem; font-weight: 900; margin: 8px 0; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🌲 Pilkkilogistiikka Pro 4.0 <span style="font-size:0.75rem;color:var(--teal);font-weight:600;">ERÄ EDITION</span></h1>
+    <div class="subtitle">Yhden napin vakiopaikkaratkaisu • Stealth-lähestyminen • Syönti-ikkuna • Talvikustannukset</div>
+  </div>
+</header>
+
+<!-- TASO 1: YHDEN NAPIN VAKIOPAIKAT -->
+<div class="spot-bar" id="spotBar"></div>
+
+<!-- TASO 1: PÄÄTÖSKORTTI (OLEELLINEN EDELLÄ) -->
+<div class="hero" id="heroCard"></div>
+
+<div class="grid">
+  <!-- VASEN SARAKE: PÄIVÄN KELI & TAKTIIKKA -->
+  <div>
+    <div class="card">
+      <h2>1. Tämän Päivän Keli & Jää</h2>
+      <div class="control">
+        <label>Teräsjään paksuus <span class="val" id="v-ice">22 cm</span></label>
+        <input type="range" id="ice" min="0" max="65" value="22" oninput="update()">
+      </div>
+      <div class="control">
+        <label>Lumi / Vesisohjo jäällä <span class="val" id="v-snowSlush">4 cm lumi / 0 cm sohjo</span></label>
+        <div class="row2" style="margin-bottom:0;">
+          <input type="range" id="snow" min="0" max="60" value="4" oninput="update()">
+          <input type="range" id="slush" min="0" max="35" value="0" oninput="update()">
+        </div>
+      </div>
+      <div class="control">
+        <label>Aamulämpö & Iltapäivän muutos <span class="val" id="v-temp">-8 °C (iltapv -6 °C)</span></label>
+        <div class="row2" style="margin-bottom:0;">
+          <input type="range" id="temp" min="-30" max="8" value="-8" oninput="update()">
+          <input type="range" id="tempPm" min="-25" max="10" value="-6" oninput="update()">
+        </div>
+      </div>
+      <div class="control">
+        <label>Tuuli (m/s) <span class="val" id="v-wind">5 m/s</span></label>
+        <input type="range" id="wind" min="0" max="20" value="5" oninput="update()">
+      </div>
+      <div class="row2">
+        <div>
+          <span class="flbl">Reitin riskit (virta/railo)</span>
+          <select id="hazard" onchange="update()">
+            <option value="none" selected>Tasainen selkäjää</option>
+            <option value="crack">Paineenalainen railo</option>
+            <option value="current">Virtasalmi / kapeikko</option>
+          </select>
+        </div>
+        <div>
+          <span class="flbl">Vesistötyyppi</span>
+          <select id="waterType" onchange="update()">
+            <option value="lake" selected>Sisävesi</option>
+            <option value="sea">Meri (-20% kantavuus)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. Reissun Tyyli & Peliaika</h2>
+      <div class="control">
+        <label>Siirtymä rannasta kohteelle <span class="val" id="v-dist">4.0 km</span></label>
+        <input type="range" id="dist" min="0.2" max="15" step="0.2" value="4.0" oninput="update()">
+      </div>
+      <div class="row2">
+        <div>
+          <span class="flbl">Kalastustyyli</span>
+          <select id="style" onchange="update()">
+            <option value="hop" selected>Aktiivinen reikäketju (25–40 reikää)</option>
+            <option value="camp">Leiriytyminen (teltta + kamiina)</option>
+          </select>
+        </div>
+        <div>
+          <span class="flbl">Syönti-ikkuna / peliaika</span>
+          <select id="sessionHrs" onchange="update()">
+            <option value="3">Pikapisto (3 h)</option>
+            <option value="5" selected>Normaalipäivä (5 h)</option>
+            <option value="8">Koko päivän retki (8 h)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <span class="flbl">Kohdekala</span>
+          <select id="species" onchange="update()">
+            <option value="perch" selected>Iso ahven (erittäin arka)</option>
+            <option value="whitefish">Siika / Harjus (matala)</option>
+            <option value="zander">Kuha (keskiarka)</option>
+            <option value="pike">Hauki / Made</option>
+          </select>
+        </div>
+        <div>
+          <span class="flbl">Kairaustapa (äänibudjetti)</span>
+          <select id="auger" onchange="update()">
+            <option value="manual">Käsikaira (hiljaisin)</option>
+            <option value="drill" selected>18V Akkuporakone + 4"/6"</option>
+            <option value="electric">Sähkökaira 24V (8")</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- AVATTAVA: AUTO, KÄRRY & TALLENNA VAKIOPAIKKA -->
+    <details>
+      <summary>🚗 Auto, Peräkärry & Oma Vakiopaikka</summary>
+      <div class="det-body">
+        <div class="row2">
+          <div>
+            <span class="flbl">Vetoauto</span>
+            <select id="carType" onchange="updateCarDefaults()">
+              <option value="diesel" selected>Diesel (E 220 CDI)</option>
+              <option value="petrol">Bensa</option>
+              <option value="ev">Sähköauto (EV)</option>
+            </select>
+          </div>
+          <div>
+            <span class="flbl">Edestakainen tie (km)</span>
+            <input type="number" id="roadKm" value="140" onchange="update()">
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <span class="flbl" id="lbl-cons">Kulutus (l/100km)</span>
+            <input type="number" id="baseCons" value="6.0" step="0.2" onchange="update()">
+          </div>
+          <div>
+            <span class="flbl" id="lbl-price">Hinta (€/l tai €/kWh)</span>
+            <input type="number" id="fuelPrice" value="1.75" step="0.05" onchange="update()">
+          </div>
+        </div>
+        <div class="control" style="margin-top:6px;">
+          <label>Kärrylogistiikan vaivakerroin <span class="val" id="v-hassle">Normaali</span></label>
+          <input type="range" id="hassle" min="0" max="2" step="1" value="1" oninput="update()">
+        </div>
+        <hr style="border:0; border-top:1px solid var(--border); margin:10px 0;">
+        <span class="flbl">Tallenna nykyiset asetukset uutena vakiopaikkana:</span>
+        <div class="row2" style="margin-top:4px;">
+          <input type="text" id="newSpotName" placeholder="Esim. Ojutjärvi selkä">
+          <button class="spot-btn active" onclick="saveCustomSpot()">+ Tallenna paikka</button>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- OIKEA SARAKE: SYVÄANALYYSI & KUVAAJA -->
+  <div>
+    <div class="card">
+      <h2>3. Stealth-lähestyminen & Monikäyräkuvaaja</h2>
+      <div class="tabs">
+        <button class="tab active" onclick="setChartMode('stealthZoom', this)">🎯 Stealth-zoom (0–450 m)</button>
+        <button class="tab" onclick="setChartMode('distDecision', this)">🧭 Etäisyyspäätös (km)</button>
+        <button class="tab" onclick="setChartMode('ice', this)">🧊 Jää & Resonanssi</button>
+        <button class="tab" onclick="setChartMode('snow', this)">❄️ Lumi & Sohjo</button>
+      </div>
+
+      <div class="zoom-bar">
+        <span style="font-size:0.74rem; color:var(--muted);">🔍 Zoom:</span>
+        <div id="zoomBtns" style="display:flex; gap:4px;"></div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:0.73rem; color:var(--teal);">Testaa pysäköinti: <strong id="v-park">150 m</strong></span>
+          <input type="range" id="parkDist" min="0" max="400" step="10" value="150" style="width:90px;" oninput="update()">
+        </div>
+      </div>
+
+      <canvas id="chartCanvas" width="700" height="295"></canvas>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <!-- AVATTAVA: KOKO ARSENAALIN TAULUKKO -->
+    <details open>
+      <summary>📊 Koko Arsenaalin Vertailutaulukko (11 kulkuvälinettä)</summary>
+      <div class="det-body" style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Kulkuväline</th>
+              <th>Pisteet</th>
+              <th>30m / 60m</th>
+              <th>Tehokas peliaika</th>
+              <th>Stealth-raja</th>
+              <th>Reissukulu</th>
+            </tr>
+          </thead>
+          <tbody id="rankingTable"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- AVATTAVA: KENTTÄ-GPS SAMMUTUSTUTKA -->
+    <details>
+      <summary>📡 Kenttä-GPS: "Sammuta Moottori Nyt" -tutka</summary>
+      <div class="det-body">
+        <div class="gps-box">
+          <div style="font-size:0.78rem; color:var(--muted);">Merkitse ottipaikan koordinaatit (tai lukitse nykyinen sijainti kun olet paikalla) ja lähestyessäsi ruutu ilmoittaa tarkan sammutuspisteen.</div>
+          <div style="margin-top:8px;">
+            <button class="gps-btn" onclick="setGpsTargetHere()">📍 Aseta nykyinen sijainti kohteeksi</button>
+            <button class="gps-btn" style="background:var(--amber);" onclick="toggleGpsWatch()" id="gpsToggleBtn">▶️ Käynnistä etäisyysseuranta</button>
+          </div>
+          <div class="gps-dist" id="gpsDistDisplay" style="color:var(--muted);">— m</div>
+          <div id="gpsStatusText" style="font-size:0.82rem; color:var(--muted);">GPS ei aktiivinen</div>
+        </div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+const DEFAULT_SPOTS = [
+  { id: 'varpula', name: '🌲 Varpula (Seinäjoki)', roadKm: 28, dist: 1.8, water: 'lake', depth: 4, species: 'perch', hazard: 'none' },
+  { id: 'lappajarvi', name: '🌊 Lappajärvi (Kärnä)', roadKm: 145, dist: 4.5, water: 'lake', depth: 7, species: 'zander', hazard: 'current' },
+  { id: 'svedjehamn', name: '⚓ Raippaluoto / Svedjehamn', roadKm: 210, dist: 6.5, water: 'sea', depth: 5, species: 'perch', hazard: 'crack' },
+  { id: 'tankar', name: '🧭 Luoto / Tankar (Ulkomeri)', roadKm: 295, dist: 9.0, water: 'sea', depth: 8, species: 'perch', hazard: 'crack' },
+  { id: 'aminne', name: '🐟 Maalahti / Åminne', roadKm: 175, dist: 3.5, water: 'sea', depth: 3, species: 'whitefish', hazard: 'none' }
+];
+
+const VEHICLES = [
+  { id: 'boat', name: 'Vene (avovesi/riite)', color: '#06b6d4', minIce: 0, maxIce: 1.5, trailer: 'heavy', prepMin: 15, baseSpeed: 32, snowPen: 0, slushPen: 0, cap: 3, acoustic: 95, iceFuelLph: 4.5, windProt: 0.4 },
+  { id: 'walk_spikes', name: 'Kävellen + nastakengät', color: '#22c55e', minIce: 5, maxIce: 99, trailer: 'none', prepMin: 3, baseSpeed: 4.6, snowPen: 0.08, slushPen: 0.14, cap: 1, acoustic: 15, iceFuelLph: 0, windProt: 0.0 },
+  { id: 'walk_chains', name: 'Kävellen + jääketjut', color: '#84cc16', minIce: 5, maxIce: 99, trailer: 'none', prepMin: 4, baseSpeed: 4.4, snowPen: 0.07, slushPen: 0.11, cap: 1, acoustic: 22, iceFuelLph: 0, windProt: 0.0 },
+  { id: 'snowshoes', name: 'Lumikengät / metsäsukset', color: '#10b981', minIce: 6, maxIce: 99, trailer: 'none', prepMin: 5, baseSpeed: 5.3, snowPen: 0.02, slushPen: 0.09, cap: 1, acoustic: 12, iceFuelLph: 0, windProt: 0.0 },
+  { id: 'kicksled', name: 'Potkukelkka + hankijalakset', color: '#eab308', minIce: 7, maxIce: 99, trailer: 'none', prepMin: 4, baseSpeed: 12.0, snowPen: 0.45, slushPen: 0.65, cap: 2, acoustic: 26, iceFuelLph: 0, windProt: 0.1 },
+  { id: 'ebike', name: 'Fatbike / Sähköpyörä (nastat)', color: '#2dd4bf', minIce: 9, maxIce: 99, trailer: 'light', prepMin: 6, baseSpeed: 18.5, snowPen: 0.35, slushPen: 0.55, cap: 1, acoustic: 24, iceFuelLph: 0, windProt: 0.1 },
+  { id: 'atv', name: 'Mönkijä (Sportsman 570 + nastat)', color: '#38bdf8', minIce: 16, maxIce: 99, trailer: 'heavy', prepMin: 12, baseSpeed: 35.0, snowPen: 0.14, slushPen: 0.38, cap: 3, acoustic: 130, iceFuelLph: 3.2, windProt: 0.55 },
+  { id: 'atv_tracks', name: 'Telamönkijä (4x4 telasarja)', color: '#818cf8', minIce: 20, maxIce: 99, trailer: 'heavy', prepMin: 14, baseSpeed: 24.0, snowPen: 0.03, slushPen: 0.08, cap: 3, acoustic: 155, iceFuelLph: 5.0, windProt: 0.55 },
+  { id: 'sled_light', name: 'Kevyt ilmajäähd. kelkka', color: '#f97316', minIce: 12, maxIce: 99, trailer: 'heavy', prepMin: 10, baseSpeed: 38.0, snowPen: 0.04, slushPen: 0.07, cap: 2, acoustic: 145, iceFuelLph: 4.5, windProt: 0.65 },
+  { id: 'sled_4t', name: 'Iso nelitahtikelkka (touring/työ)', color: '#c084fc', minIce: 20, maxIce: 99, trailer: 'heavy', prepMin: 12, baseSpeed: 48.0, snowPen: 0.03, slushPen: 0.10, cap: 3, acoustic: 120, iceFuelLph: 4.2, windProt: 0.85, needsSnowCooling: true },
+  { id: 'hydro', name: 'Hydrokopteri / ilmatyynyalus', color: '#f43f5e', minIce: 0, maxIce: 99, trailer: 'heavy', prepMin: 15, baseSpeed: 45.0, snowPen: 0.02, slushPen: 0.02, cap: 3, acoustic: 260, iceFuelLph: 9.0, windProt: 0.95 }
+];
+
+let hiddenVehicles = new Set(['hydro']);
+let chartMode = 'stealthZoom';
+let zoomMax = 300;
+let activeSpotId = 'lappajarvi';
+let currentDepth = 5;
+
+const ZOOM_OPTS = {
+  stealthZoom: [{ l: '0–100 m', v: 100 }, { l: '0–250 m', v: 250 }, { l: '0–450 m', v: 450 }],
+  distDecision: [{ l: '0–3 km', v: 3 }, { l: '0–8 km', v: 8 }, { l: '0–15 km', v: 15 }],
+  ice: [{ l: '0–25 cm', v: 25 }, { l: '0–50 cm', v: 50 }],
+  snow: [{ l: '0–25 cm', v: 25 }, { l: '0–50 cm', v: 50 }]
+};
+
+function getSpots() {
+  const saved = JSON.parse(localStorage.getItem('pilkki_custom_spots') || '[]');
+  return [...DEFAULT_SPOTS, ...saved];
+}
+
+function renderSpots() {
+  const bar = document.getElementById('spotBar');
+  const spots = getSpots();
+  bar.innerHTML = spots.map(s => `
+    <button class="spot-btn ${s.id === activeSpotId ? 'active' : ''}" onclick="selectSpot('${s.id}')">${s.name}</button>
+  `).join('');
+}
+
+function selectSpot(id) {
+  activeSpotId = id;
+  const spot = getSpots().find(s => s.id === id);
+  if (!spot) return;
+  document.getElementById('roadKm').value = spot.roadKm;
+  document.getElementById('dist').value = spot.dist;
+  document.getElementById('waterType').value = spot.water;
+  document.getElementById('species').value = spot.species;
+  document.getElementById('hazard').value = spot.hazard || 'none';
+  currentDepth = spot.depth || 5;
+  renderSpots();
+  update();
+}
+
+function saveCustomSpot() {
+  const name = document.getElementById('newSpotName').value.trim();
+  if (!name) return alert('Anna paikalle nimi!');
+  const s = getState();
+  const custom = JSON.parse(localStorage.getItem('pilkki_custom_spots') || '[]');
+  const id = 'custom_' + Date.now();
+  custom.push({
+    id,
+    name: '⭐ ' + name,
+    roadKm: s.roadKm,
+    dist: s.dist,
+    water: s.water,
+    depth: currentDepth,
+    species: s.species,
+    hazard: s.hazard
+  });
+  localStorage.setItem('pilkki_custom_spots', JSON.stringify(custom));
+  document.getElementById('newSpotName').value = '';
+  activeSpotId = id;
+  renderSpots();
+  update();
+}
+
+function updateCarDefaults() {
+  const t = document.getElementById('carType').value;
+  const cons = document.getElementById('baseCons');
+  const price = document.getElementById('fuelPrice');
+  if (t === 'diesel') { cons.value = 6.0; price.value = 1.75; document.getElementById('lbl-cons').textContent = 'Kulutus (l/100km)'; document.getElementById('lbl-price').textContent = 'Hinta (€/l)'; }
+  else if (t === 'petrol') { cons.value = 7.4; price.value = 1.85; document.getElementById('lbl-cons').textContent = 'Kulutus (l/100km)'; document.getElementById('lbl-price').textContent = 'Hinta (€/l)'; }
+  else { cons.value = 21.0; price.value = 0.22; document.getElementById('lbl-cons').textContent = 'Kulutus (kWh/100km)'; document.getElementById('lbl-price').textContent = 'Hinta (€/kWh)'; }
+  update();
+}
+
+function getState() {
+  return {
+    ice: parseFloat(document.getElementById('ice').value),
+    snow: parseFloat(document.getElementById('snow').value),
+    slush: parseFloat(document.getElementById('slush').value),
+    temp: parseFloat(document.getElementById('temp').value),
+    tempPm: parseFloat(document.getElementById('tempPm').value),
+    wind: parseFloat(document.getElementById('wind').value),
+    hazard: document.getElementById('hazard').value,
+    water: document.getElementById('waterType').value,
+    dist: parseFloat(document.getElementById('dist').value),
+    style: document.getElementById('style').value,
+    sessionHrs: parseFloat(document.getElementById('sessionHrs').value),
+    species: document.getElementById('species').value,
+    auger: document.getElementById('auger').value,
+    carType: document.getElementById('carType').value,
+    roadKm: parseFloat(document.getElementById('roadKm').value) || 140,
+    baseCons: parseFloat(document.getElementById('baseCons').value) || 6.0,
+    fuelPrice: parseFloat(document.getElementById('fuelPrice').value) || 1.75,
+    hassle: parseInt(document.getElementById('hassle').value),
+    parkDist: parseFloat(document.getElementById('parkDist').value)
+  };
+}
+
+function evaluateVehicle(v, s) {
+  const seaFactor = s.water === 'sea' ? 1.25 : 1.0;
+  const hazardFactor = s.hazard === 'current' ? 1.35 : (s.hazard === 'crack' ? 1.2 : 1.0);
+  const reqIce = v.minIce * seaFactor * hazardFactor;
+
+  let safe = true;
+  let stopReason = '';
+  if (v.id === 'boat') {
+    if (s.ice > 1.5) { safe = false; stopReason = 'Jää estää veneilyn'; }
+  } else if (v.id !== 'hydro') {
+    if (s.ice < reqIce) { safe = false; stopReason = `Vaaditaan ≥ ${Math.ceil(reqIce)} cm jäätä`; }
+    if (s.hazard === 'current' && v.minIce >= 16 && s.ice < 28) { safe = false; stopReason = 'Virtasalmi liian riskialtis raskaalle'; }
+  }
+
+  // Ennustettu iltapäivän sohjo (jos aamulla pakkasta ja iltapäivällä plussaa)
+  const pmThawSlush = (s.temp <= 0 && s.tempPm > 1) ? s.slush + Math.min(18, s.snow * 0.45 + s.tempPm * 2) : s.slush;
+
+  let speed = v.baseSpeed;
+  if (v.id !== 'boat' && v.id !== 'hydro') {
+    const snowDrop = Math.min(0.88, s.snow * v.snowPen * 0.12);
+    const slushDrop = Math.min(0.92, s.slush * v.slushPen * 0.18);
+    speed = speed * (1 - snowDrop) * (1 - slushDrop);
+    if (s.snow === 0 && v.id === 'snowshoes') speed *= 0.7;
+  }
+  speed = Math.max(1.2, speed);
+
+  let stuck = false;
+  let pmWarning = false;
+  if (v.id === 'kicksled' && (s.snow > 14 || s.slush > 6)) { stuck = true; stopReason = 'Potkuri uppoaa lumeen/sohjoon'; }
+  if (v.id === 'ebike' && (s.snow > 18 || s.slush > 8)) { stuck = true; stopReason = 'Pyörä uppoaa lumeen'; }
+  if (v.id === 'atv' && s.slush > 20) { stuck = true; stopReason = 'Mönkijä jää pohjastaan sohjoon'; }
+  if (v.id === 'atv' && pmThawSlush > 20 && s.slush <= 20) pmWarning = true;
+  if ((v.id === 'walk_spikes' || v.id === 'walk_chains') && s.snow > 35) { stuck = true; stopReason = 'Liian syvä hanki jalan'; }
+
+  // Stealth & kairausäänibudjetti
+  const snowDamp = s.snow === 0 ? 1.65 : Math.max(0.55, 1.25 - s.snow * 0.025);
+  const depthFactor = currentDepth <= 3 ? 1.45 : (currentDepth <= 7 ? 1.0 : 0.75);
+  const speciesMult = { perch: 1.35, whitefish: 1.45, zander: 1.0, pike: 0.65 }[s.species];
+  const windMask = Math.max(0.7, 1.15 - s.wind * 0.025);
+  const augerAdd = s.auger === 'electric' ? 18 : (s.auger === 'drill' ? 8 : 0);
+  const stealthDist = Math.round((v.acoustic + augerAdd) * snowDamp * depthFactor * speciesMult * windMask);
+
+  function spookRiskAt(d) {
+    if (d >= stealthDist * 1.25) return 5;
+    if (d <= 5) return 98;
+    const ratio = d / stealthDist;
+    return Math.min(99, Math.max(5, Math.round(100 * Math.exp(-1.6 * ratio * ratio))));
+  }
+
+  // Etenemä 30/60 min & Tehokas peliaika avannolla
+  const walkKm = (v.acoustic > 50) ? Math.min(s.dist, stealthDist / 1000) : 0;
+  const driveKm = Math.max(0, s.dist - walkKm);
+  const oneWayMin = v.prepMin + (driveKm / speed) * 60 + (walkKm / 3.8) * 60;
+  const roundLogMin = oneWayMin * 2;
+  const effectiveFishHrs = Math.max(0, s.sessionHrs - (roundLogMin / 60));
+
+  function calcReach(totalMin) {
+    if (!safe || stuck) return 0;
+    const avail = Math.max(0, totalMin - v.prepMin);
+    if (avail <= 0) return 0;
+    const wKm = (v.acoustic > 50) ? (stealthDist / 1000) : 0;
+    const wMin = (wKm / 3.8) * 60;
+    if (avail <= wMin) return (avail / 60) * 3.8;
+    return wKm + ((avail - wMin) / 60) * speed;
+  }
+
+  // Talvikulutus + kärry
+  const coldMult = s.carType === 'ev'
+    ? (s.temp < 0 ? 1 + Math.min(0.32, Math.abs(s.temp) * 0.014) : 1.0)
+    : (s.temp < 0 ? 1 + Math.min(0.14, Math.abs(s.temp) * 0.006) : 1.0);
+  const trailerMult = s.carType === 'ev'
+    ? (v.trailer === 'none' ? 1.0 : (v.trailer === 'light' ? 1.25 : 1.48))
+    : (v.trailer === 'none' ? 1.0 : (v.trailer === 'light' ? 1.18 : 1.35));
+
+  const roadCost = (s.roadKm / 100) * s.baseCons * coldMult * trailerMult * s.fuelPrice;
+  const trailerExtra = roadCost - ((s.roadKm / 100) * s.baseCons * coldMult * s.fuelPrice);
+  const iceFuelCost = ((s.dist * 2) / speed) * v.iceFuelLph * 1.85;
+  const totalCost = roadCost + iceFuelCost;
+
+  // Ajoviima (Wind Chill)
+  const effWindKmh = (v.acoustic > 50) ? (s.wind * 3.6 + speed * (1 - v.windProt)) : (s.wind * 3.6 + 4);
+  const windChill = Math.round(13.12 + 0.6215 * s.temp - 11.37 * Math.pow(effWindKmh, 0.16) + 0.3965 * s.temp * Math.pow(effWindKmh, 0.16));
+
+  // Kriittinen resonanssinopeus ohuehkolla jäällä
+  const critSpeed = (v.minIce >= 12 && s.ice < 28) ? Math.round(16 + currentDepth * 1.1) : null;
+
+  if (!safe || stuck) {
+    return { ...v, safe: false, stuck, stopReason, score: 0, speed, stealthDist, spookRiskAt, reach30: 0, reach60: 0, effectiveFishHrs: 0, totalCost, trailerExtra, iceFuelCost, windChill, pmWarning, critSpeed };
+  }
+
+  let score = 62;
+  const reqCap = s.style === 'camp' ? 3 : 1;
+  if (v.cap < reqCap) score -= (reqCap - v.cap) * 26;
+  else score += (v.cap - reqCap) * 4;
+
+  // Tehokas kalastusaika vs siirtymä
+  const fishRatio = effectiveFishHrs / s.sessionHrs;
+  if (fishRatio >= 0.82) score += 18;
+  else if (fishRatio >= 0.68) score += 8;
+  else score -= Math.round((0.68 - fishRatio) * 85);
+
+  // Reikäketju-tyyli suosii hiljaisia/kevyitä välineitä
+  if (s.style === 'hop' && v.acoustic > 80) score -= 14;
+  if (s.style === 'hop' && v.acoustic <= 30) score += 10;
+
+  // Kärryn vaivakerroin lyhyillä matkoilla
+  if (v.trailer === 'heavy') score -= s.hassle * (s.dist < 3.5 ? 9 : 4);
+  if (v.trailer === 'none' && s.dist <= 3.5) score += 10;
+
+  if (v.needsSnowCooling && s.snow < 3) score -= 24;
+  if (pmWarning) score -= 18;
+  if (windChill <= -24) score -= 12;
+
+  score = Math.max(5, Math.min(99, Math.round(score)));
+  return { ...v, safe: true, stuck: false, stopReason: '', score, speed, stealthDist, spookRiskAt, reach30: calcReach(30), reach60: calcReach(60), effectiveFishHrs, totalCost, trailerExtra, iceFuelCost, windChill, pmWarning, critSpeed };
+}
+
+function update() {
+  const s = getState();
+  document.getElementById('v-ice').textContent = s.ice + ' cm';
+  document.getElementById('v-snowSlush').textContent = `${s.snow} cm lumi / ${s.slush} cm sohjo`;
+  document.getElementById('v-temp').textContent = `${s.temp} °C (iltapv ${s.tempPm} °C)`;
+  document.getElementById('v-wind').textContent = s.wind + ' m/s';
+  document.getElementById('v-dist').textContent = s.dist.toFixed(1) + ' km';
+  document.getElementById('v-hassle').textContent = ['Pieni', 'Normaali', 'Korkea'][s.hassle];
+  document.getElementById('v-park').textContent = s.parkDist + ' m';
+
+  const results = VEHICLES.map(v => evaluateVehicle(v, s)).sort((a, b) => b.score - a.score);
+  const best = results[0];
+
+  const hero = document.getElementById('heroCard');
+  if (!best || best.score === 0) {
+    hero.style.borderColor = 'var(--red)';
+    hero.innerHTML = `<span class="badge" style="background:var(--red);color:#fff;">EI TURVALLISTA VAIHTOEHTOA</span>
+      <div class="hero-title">Olosuhteet ylittävät turvarajat (${s.ice} cm jää)</div>
+      <div class="hero-sub">Odota jään vahvistumista tai valitse suojaisampi kohde.</div>`;
+  } else {
+    hero.style.borderColor = 'var(--green)';
+    let alertsHtml = `
+      <div class="alert-item alert-stealth">
+        <span>🔇</span>
+        <div><strong>Stealth-päätös:</strong> Sammuta ja pysäköi viimeistään <strong>${best.stealthDist} m</strong> ennen ottipaikkaa (karkotusriski alle 20 %). Kairaustapa (${s.auger === 'manual' ? 'käsikaira' : 'akkukaira'}) huomioitu.</div>
+      </div>
+    `;
+    if (best.pmWarning) {
+      alertsHtml += `<div class="alert-item alert-warn"><span>💦</span><div><strong>Iltapäivän sohjovaroitus:</strong> Lämpötila nousee +${s.tempPm} °C – paluumatkalla sohjo syvenee ja raskas kalusto voi juuttua.</div></div>`;
+    }
+    if (best.critSpeed) {
+      alertsHtml += `<div class="alert-item alert-warn"><span>🌊</span><div><strong>Jään resonanssinopeus:</strong> Alle 28 cm jäällä vältä <strong>${best.critSpeed - 3}–${best.critSpeed + 3} km/h</strong> nopeutta (vedenalainen paineaalto).</div></div>`;
+    }
+    if (best.windChill <= -22) {
+      alertsHtml += `<div class="alert-item alert-danger"><span>🥶</span><div><strong>Ajoviiman purevuus (${best.windChill} °C):</strong> Kahvanlämmittimet ja tuulisuoja/kasvomaski pakolliset siirtymällä.</div></div>`;
+    }
+
+    hero.innerHTML = `
+      <div class="hero-top">
+        <div>
+          <span class="badge">Optimi valinta tähän hetkeen</span>
+          <div class="hero-title">${best.name}</div>
+          <div class="hero-sub">Marssinopeus kelissä: <strong>${best.speed.toFixed(1)} km/h</strong> • Purku rannassa: <strong>${best.prepMin} min</strong></div>
+        </div>
+        <div class="hero-score">${best.score}<span>/100</span></div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-lbl">Tehokas peliaika</div>
+          <div class="kpi-val" style="color:var(--green);">${best.effectiveFishHrs.toFixed(1)} h <span style="font-size:0.75rem;color:var(--muted);">/ ${s.sessionHrs}h</span></div>
+          <div class="kpi-desc">Aikaa avannolla (${Math.round((best.effectiveFishHrs/s.sessionHrs)*100)}%)</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">Etenemä 30 / 60 min</div>
+          <div class="kpi-val" style="color:var(--teal);">${best.reach30.toFixed(1)} / ${best.reach60.toFixed(1)} km</div>
+          <div class="kpi-desc">Purku + siirtymä + stealth</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">Stealth-varoetäisyys</div>
+          <div class="kpi-val" style="color:var(--amber);">${best.stealthDist} m</div>
+          <div class="kpi-desc">Oma testi (${s.parkDist}m): ${best.spookRiskAt(s.parkDist)}% riski</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">Reissukulu (${s.roadKm} km)</div>
+          <div class="kpi-val">${best.totalCost.toFixed(1)} €</div>
+          <div class="kpi-desc">Kärry +${best.trailerExtra.toFixed(1)}€ • Jää +${best.iceFuelCost.toFixed(1)}€</div>
+        </div>
+      </div>
+      <div class="alerts">${alertsHtml}</div>
+    `;
+  }
+
+  // Taulukko
+  document.getElementById('rankingTable').innerHTML = results.map((r, i) => {
+    const ok = r.safe && !r.stuck;
+    const col = r.score >= 75 ? 'var(--green)' : (r.score >= 45 ? 'var(--amber)' : 'var(--red)');
+    return `
+      <tr class="${ok ? (i === 0 ? 'best-row' : '') : 'banned'}">
+        <td><strong style="color:${r.color};">${r.name}</strong><br><span style="font-size:0.69rem;color:var(--muted);">${ok ? `${r.speed.toFixed(1)} km/h (purku ${r.prepMin}m)` : r.stopReason}</span></td>
+        <td>${ok ? `<div class="bar-bg"><div class="bar-fill" style="width:${r.score}%;background:${col};"></div></div><strong>${r.score}</strong>` : '<span style="color:var(--red);font-weight:700;">STOP</span>'}</td>
+        <td>${ok ? `${r.reach30.toFixed(1)} / <strong>${r.reach60.toFixed(1)} km</strong>` : '—'}</td>
+        <td>${ok ? `<strong>${r.effectiveFishHrs.toFixed(1)} h</strong>` : '—'}</td>
+        <td><strong>${r.stealthDist} m</strong></td>
+        <td><strong>${r.totalCost.toFixed(1)} €</strong></td>
+      </tr>
+    `;
+  }).join('');
+
+  drawChart(s);
+}
+
+function setChartMode(mode, btn) {
+  chartMode = mode;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const opts = ZOOM_OPTS[mode];
+  zoomMax = opts[opts.length > 1 ? 1 : 0].v;
+  renderZoomBtns();
+  drawChart(getState());
+}
+
+function renderZoomBtns() {
+  const opts = ZOOM_OPTS[chartMode] || [];
+  document.getElementById('zoomBtns').innerHTML = opts.map(o => `
+    <button class="z-btn ${zoomMax === o.v ? 'active' : ''}" onclick="setZoom(${o.v})">${o.l}</button>
+  `).join('');
+}
+
+function setZoom(v) { zoomMax = v; renderZoomBtns(); drawChart(getState()); }
+
+function buildLegend() {
+  document.getElementById('legend').innerHTML = VEHICLES.map(v => `
+    <div class="leg-item ${hiddenVehicles.has(v.id) ? 'off' : ''}" onclick="toggleVeh('${v.id}')">
+      <span class="leg-dot" style="background:${v.color};"></span>
+      <span>${v.name.split(' (')[0]}</span>
+    </div>
+  `).join('');
+}
+
+function toggleVeh(id) {
+  if (hiddenVehicles.has(id)) hiddenVehicles.delete(id);
+  else hiddenVehicles.add(id);
+  buildLegend();
+  drawChart(getState());
+}
+
+function drawChart(s) {
+  const canvas = document.getElementById('chartCanvas');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = 590;
+  ctx.scale(2, 2);
+  const W = rect.width, H = 295;
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 44, padR = 14, padT = 20, padB = 32;
+  const pW = W - padL - padR, pH = H - padT - padB;
+  const xMax = zoomMax, yMax = 100;
+  const xUnit = chartMode === 'stealthZoom' ? ' m' : (chartMode === 'distDecision' ? ' km' : ' cm');
+  const yUnit = chartMode === 'stealthZoom' ? '%' : 'p.';
+
+  if (chartMode === 'stealthZoom') {
+    const safeY = padT + pH - (20 / 100) * pH;
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.09)';
+    ctx.fillRect(padL, safeY, pW, padT + pH - safeY);
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.45)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(padL, safeY); ctx.lineTo(W - padR, safeY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillText('TURVALLINEN STEALTH-ALUE (< 20 % karkotusriski)', padL + 6, safeY - 5);
+  }
+
+  ctx.strokeStyle = '#1b2b22';
+  ctx.lineWidth = 1;
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#8fa699';
+
+  for (let i = 0; i <= 5; i++) {
+    const y = padT + (pH / 5) * i;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillText(Math.round(yMax - (yMax / 5) * i) + yUnit, 4, y + 3);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const x = padL + (pW / 5) * i;
+    const val = ((xMax / 5) * i).toFixed(chartMode === 'distDecision' && xMax <= 3 ? 1 : 0);
+    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + pH); ctx.stroke();
+    ctx.fillText(val + xUnit, x - 12, H - 9);
+  }
+
+  let curX = chartMode === 'stealthZoom' ? s.parkDist : (chartMode === 'distDecision' ? s.dist : (chartMode === 'ice' ? s.ice : s.snow));
+  if (curX <= xMax) {
+    const cx = padL + (curX / xMax) * pW;
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(cx, padT); ctx.lineTo(cx, padT + pH); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  VEHICLES.forEach(v => {
+    if (hiddenVehicles.has(v.id)) return;
+    ctx.strokeStyle = v.color;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (let i = 0; i <= 55; i++) {
+      const xVal = (xMax / 55) * i;
+      let yVal = 0;
+      if (chartMode === 'stealthZoom') {
+        yVal = evaluateVehicle(v, s).spookRiskAt(xVal);
+      } else {
+        const sim = { ...s };
+        if (chartMode === 'distDecision') sim.dist = Math.max(0.2, xVal);
+        else if (chartMode === 'ice') sim.ice = xVal;
+        else sim.snow = xVal;
+        yVal = evaluateVehicle(v, sim).score;
+      }
+      const px = padL + (xVal / xMax) * pW;
+      const py = padT + pH - (Math.min(100, Math.max(0, yVal)) / 100) * pH;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  });
+}
+
+// KENTTÄ-GPS TUTKA
+let targetCoords = null;
+let watchId = null;
+
+function setGpsTargetHere() {
+  if (!navigator.geolocation) return alert('GPS ei tuettu tässä selaimessa.');
+  navigator.geolocation.getCurrentPosition(pos => {
+    targetCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    document.getElementById('gpsStatusText').textContent = `Kohde lukittu: ${targetCoords.lat.toFixed(5)}, ${targetCoords.lon.toFixed(5)}`;
+    document.getElementById('gpsDistDisplay').textContent = '0 m';
+  }, err => alert('GPS-virhe: ' + err.message), { enableHighAccuracy: true });
+}
+
+function toggleGpsWatch() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    document.getElementById('gpsToggleBtn').textContent = '▶️ Käynnistä etäisyysseuranta';
+    document.getElementById('gpsStatusText').textContent = 'Seuranta pysäytetty.';
+    return;
+  }
+  if (!targetCoords) return alert('Aseta ensin kohdesijainti!');
+  document.getElementById('gpsToggleBtn').textContent = '⏹️ Pysäytä seuranta';
+  watchId = navigator.geolocation.watchPosition(pos => {
+    const d = haversineM(pos.coords.latitude, pos.coords.longitude, targetCoords.lat, targetCoords.lon);
+    const s = getState();
+    const best = VEHICLES.map(v => evaluateVehicle(v, s)).sort((a, b) => b.score - a.score)[0];
+    const limit = best ? best.stealthDist : 130;
+    const disp = document.getElementById('gpsDistDisplay');
+    disp.textContent = Math.round(d) + ' m';
+    if (d <= limit) {
+      disp.style.color = 'var(--red)';
+      document.getElementById('gpsStatusText').innerHTML = `<strong style="color:var(--red);">🛑 SEIS & SAMMUTA MOOTTORI! (Raja ${limit} m alitettu)</strong>`;
+      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+    } else if (d <= limit * 1.5) {
+      disp.style.color = 'var(--amber)';
+      document.getElementById('gpsStatusText').textContent = `⚠️ Hiljennä vauhtia — sammutuspisteeseen ${Math.round(d - limit)} m`;
+    } else {
+      disp.style.color = 'var(--teal)';
+      document.getElementById('gpsStatusText').textContent = `✅ Vapaa marssiajo (sammutusraja ${limit} m)`;
+    }
+  }, err => alert('GPS-seuranta virhe: ' + err.message), { enableHighAccuracy: true });
+}
+
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+renderSpots();
+buildLegend();
+renderZoomBtns();
+selectSpot('lappajarvi');
+window.addEventListener('resize', () => drawChart(getState()));
+</script>
+</body>
+</html>
