@@ -269,7 +269,7 @@
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v015';
+const VERSIO = 'v016';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -315,6 +315,9 @@ const ASET = Object.assign({}, OLETUS, lueLS('pilkki_asetukset', {}));
 ASET.leiri = Object.assign({}, OLETUS.leiri, ASET.leiri || {});
 ASET.pysahdys = Object.assign({}, OLETUS.pysahdys, ASET.pysahdys || {});
 ASET.kerrokset = Object.assign({}, OLETUS.kerrokset, ASET.kerrokset || {});
+// v016: aluetäytöt yksi kerrallaan – jään paksuus, pohjan lämpö ja heikot jäät käyttävät samoja värejä eri merkityksessä.
+// Jos vanhoissa asetuksissa on useampi päällä, heikot jäät (vaaratieto) jää näkyviin.
+if (ASET.kerrokset.hazor !== false && (ASET.kerrokset.jaa || ASET.kerrokset.pohja)) { ASET.kerrokset.jaa = false; ASET.kerrokset.pohja = false; }
 ASET.paikat = ASET.paikat || {}; ASET.nakymat = ASET.nakymat || {};
 if (!ASET.nakymat.meri && ASET.kartta) ASET.nakymat.meri = ASET.kartta;   // v005:n tallennettu näkymä
 let MITTAUKSET = lueLS('pilkki_mittaukset', []);
@@ -2281,6 +2284,7 @@ function korttiKerrokset() {
   if (k.vaylat) sel.push('<span style="--c:#ffd166">väylä, luku = mitoitussyväys</span><span>merimerkit, kun näkymä on alle 5,5 km leveä</span>');
   if (k.vaarat !== false) sel.push('<span style="--c:#d81e1e">tunnettu virtapaikka (suuntaa-antava, napauta)</span>');
   if (k.hazor !== false) sel.push(HAZOR_SELITE.map(([v, t]) => `<span style="--c:${v}">${t}</span>`).join('') + '<span>heikot jäät: päivää auki keväällä · napauta kohtaa</span>');
+  else if (meri && (k.jaa || k.pohja)) sel.push('<span>Heikot jäät pois päältä: sen värit menisivät sekaisin jään paksuuden ja pohjan lämmön värien kanssa.</span>');
   if (SALMET.length) sel.push('<span style="--c:#4fd3ff">salmi &lt; 5 cm/s</span><span style="--c:#ffc928">5–15</span><span style="--c:#ff4081">&gt; 15</span>');
   if (sel.length) h += `<div class="selite">${sel.join('')}</div>`;
   h += '<p class="pieni hiljainen" id="kerros-lahde"></p>';
@@ -2289,8 +2293,9 @@ function korttiKerrokset() {
   el.innerHTML = h;
   el.querySelectorAll('[data-kerros]').forEach(b => b.onclick = () => {
     const a = b.dataset.kerros; ASET.kerrokset[a] = (a === 'vaarat' || a === 'hazor') ? ASET.kerrokset[a] === false : !ASET.kerrokset[a];
-    if (ASET.kerrokset[a] && a === 'jaa') ASET.kerrokset.pohja = false;      // täytöt eivät päällekkäin
-    if (ASET.kerrokset[a] && a === 'pohja') ASET.kerrokset.jaa = false;
+    if (ASET.kerrokset[a] && a === 'jaa') { ASET.kerrokset.pohja = false; ASET.kerrokset.hazor = false; }      // täytöt eivät päällekkäin
+    if (ASET.kerrokset[a] && a === 'pohja') { ASET.kerrokset.jaa = false; ASET.kerrokset.hazor = false; }
+    if (a === 'hazor' && ASET.kerrokset.hazor !== false) { ASET.kerrokset.jaa = false; ASET.kerrokset.pohja = false; }
     kirjoitaLS('pilkki_asetukset', ASET);
     if ((a === 'virta' || a === 'pohja') && ASET.kerrokset[a]) lataaVesi();
     if (a === 'vaylat') lataaVaylat();
