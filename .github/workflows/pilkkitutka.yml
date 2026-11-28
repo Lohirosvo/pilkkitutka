@@ -1,4 +1,4 @@
-# Pilkkitutka – hakuajo ja julkaisu GitHub Pagesiin (v005, 24.11.2026)
+# Pilkkitutka – hakuajo ja julkaisu GitHub Pagesiin (v006, 28.11.2026)
 # Toimenpideversiot samat kuin merilohitutkan toimivassa ajossa 22.11.2026.
 name: Pilkkitutka
 
@@ -14,14 +14,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "index.html"
-      - "sw.js"
-      - "hae_pilkki.py"
-      - "hae_syvyys.py"
-      - "hae_vaylat.py"
-      - "kartta.js"
-      - "tilanne.js"
-      - "jarvisyvyys.js"
+      # v006 (28.11.2026): kaikki juuren .html- ja .js-tiedostot, koska julkaisu kopioi ne kaikki (cp *.html *.js).
+      # Aiemmin retki.js, luotaus.js ja vaarat.js puuttuivat listasta: yksinään ladattuina ne jäivät julkaisematta.
+      - "*.html"
+      - "*.js"
+      - "hae_*.py"
       - "manifest.json"
       - "*.png"
       - ".github/workflows/pilkkitutka.yml"
