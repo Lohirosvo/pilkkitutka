@@ -149,6 +149,7 @@
   input[type=range] { min-height: 44px; padding: 0; border: 0; background: none; accent-color: #ffc928; flex: 1 1 auto; }
   .kerrokset .valitsin button { min-height: 44px; flex: 1 1 28%; }
   .virtaviivat { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  .karttapaneeli a, .kortti a { color: #8fd3ff; }
   .rt-ikkuna { display: grid; grid-template-columns: repeat(25, 1fr); gap: 2px; }
   .rt-ikkuna button { height: 26px; border: 0; border-radius: 3px; color: #fff; font-size: 10px; padding: 0; min-width: 0; }
   .rt-ikkuna button.valittu { outline: 2px solid #ffc928; outline-offset: 1px; }
@@ -234,6 +235,7 @@
         Jälki ja pisteet ovat vain tässä puhelimessa.</p>
       <div class="rivi"><button class="nappi" id="piste-gps">＋ Piste tähän (GPS)</button><button class="nappi toissijainen" id="salmi-uusi">≈ Mittaa salmi</button></div>
       <p class="pieni hiljainen">Pisteen voi lisätä myös painamalla karttaa pitkään. Napauta pistettä tai pysähdystä, niin näet tiedot.</p>
+      <div id="ottilista"></div>
       <p class="pieni" id="jalki-tila"></p>
       <details><summary>Pysähdys = pilkkipaikka</summary>
         <div class="rivi">
@@ -260,13 +262,14 @@
 <script src="tilanne.js"></script>
 <script src="luotaus.js"></script>
 <script src="retki.js"></script>
+<script src="vaarat.js"></script>
 <script>
 'use strict';
 /* Pilkkitutka v006 (24.11.2026) – järvi-ikkunat (Lappajärvi, Varpula, Hirvijärvi), kokonäyttö.
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v010';
+const VERSIO = 'v012';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -301,7 +304,7 @@ const VARI = { vesi: 'var(--vari-vesi)', ennuste: 'var(--vari-ennuste)', leiri: 
 const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 },
   jalkiPaalla: false, nayttoPaalla: false, pysahdys: { min: 5, sade: 20 }, kartta: null,
   pilkki: 'tasapaino', aurinko: false,
-  kerrokset: { jaa: false, pohja: false, virta: false, tuuli: false, vaylat: true }, virtaTaso: 0, virtaviivat: true,
+  kerrokset: { jaa: false, pohja: false, virta: false, tuuli: false, vaylat: true, vaarat: true }, virtaTaso: 0, virtaviivat: true,
   alue: 'meri', paikat: {}, nakymat: {} };
 
 // --- tila
@@ -946,7 +949,7 @@ function korttiMittaukset() {
       <button class="nappi toissijainen" id="vie">Vie tiedostoksi</button>
       <label class="nappi toissijainen" style="text-align:center;display:flex;align-items:center;justify-content:center;color:var(--jaa);font-size:17px">Tuo tiedostosta<input type="file" id="tuo" accept="application/json,.json" hidden></label>
     </div>
-    <p class="pieni hiljainen">Mittaukset, reiät, pisteet, salmet, pilkkipaikat, luotaukset ja jälki ovat vain tässä puhelimessa. Varmuuskopio (kaikki paitsi Lowrance-tallenteet) tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
+    <p class="pieni hiljainen">Mittaukset, reiät, pisteet, ottipaikat, salmet, pilkkipaikat, luotaukset ja jälki ovat vain tässä puhelimessa. Varmuuskopio (kaikki paitsi Lowrance-tallenteet) tallentuu puhelimeen – ei GitHubiin eikä sähköpostiin.</p>`;
   $('k-mittaukset').innerHTML = h;
   document.querySelectorAll('[data-poista]').forEach(b => b.onclick = () => {
     if (!confirm('Poistetaanko mittaus?')) return;
@@ -955,7 +958,7 @@ function korttiMittaukset() {
   });
   $('vie').onclick = () => {
     tallennaJalki(true);
-    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET, pisteet: PISTEET, jalki: JALKI, reiat: REIAT, salmet: SALMET, luotauspaikat: LPAIKAT })], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ sovellus: 'pilkkitutka', versio: VERSIO, mittaukset: MITTAUKSET, pisteet: PISTEET, jalki: JALKI, reiat: REIAT, salmet: SALMET, luotauspaikat: LPAIKAT, ottilista: OTTILISTA })], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `pilkkitutka_varmuuskopio_${paivaAvain(Date.now())}.json`;
     document.body.appendChild(a); a.click(); a.remove();
@@ -983,7 +986,10 @@ function korttiMittaukset() {
       const lIdt = new Set(LPAIKAT.map(x => x.id)); let nl = 0;
       for (const x of (d.luotauspaikat || [])) if (x && isFinite(x.lat) && isFinite(x.lon) && isFinite(x.koko) && !lIdt.has(x.id)) { LPAIKAT.push(x); nl++; }
       if (nl) { tallennaLpaikat(); paivitaLpaikat(); }
-      alert(`Tuotu ${n} mittausta, ${np} pistettä, ${nr} reikää, ${ns} salmea, ${nl} pilkkipaikkaa ja ${nj} jäljen pistettä.`); piirra(); paivitaJalkiTila();
+      const oIdt = new Set(OTTILISTA.map(x => x.id).concat(PISTEET.map(x => x.ottiId).filter(Boolean))); let no = 0;
+      for (const x of (d.ottilista || [])) if (x && x.id && x.nimi && !oIdt.has(x.id)) { OTTILISTA.push(x); no++; }
+      if (no) tallennaOttilista();
+      alert(`Tuotu ${n} mittausta, ${np} pistettä, ${nr} reikää, ${ns} salmea, ${nl} pilkkipaikkaa, ${no} sijoittamatonta ottipaikkaa ja ${nj} jäljen pistettä.`); piirra(); paivitaJalkiTila();
     } catch (err) { alert('Tiedostoa ei voitu lukea: ' + err.message); }
   };
 }
@@ -1262,6 +1268,7 @@ function paivitaKarttaTila() {
   if (ASET.jalkiPaalla) osat.push('<span style="color:#c2185b">● jälki tallentuu</span>');
   if (SALMI_PIIRTO) osat.push('<span style="color:#ffc928">≈ salmen mittaus: napauta karttaa</span>');
   if (LPAIKKA_PIIRTO) osat.push('<span style="color:#ffc928">napauta pilkkipaikan keskikohta</span>');
+  if (OTTI_PIIRTO) osat.push(`<span style="color:#ffc928">napauta sijainti: ${esc(OTTI_PIIRTO.nimi)}</span>`);
   if (kerrosPaalla() || SALMET.length) osat.push(`<span>${KERROS.tunnit ? '+' + KERROS.tunnit + ' h ' : 'nyt '}${esc(klo(kerrosAika()))}</span>`);
   if (ASET.kerrokset.vaylat) {
     const va = (DATA && DATA.vaylat_alueet) || [];
@@ -1317,6 +1324,7 @@ function avaaPisteDialogi(p) {
     <div class="merkit">${Object.entries(PK.MERKIT).map(([k, M]) =>
       `<button data-merkki="${k}" class="${k === merkki ? 'valittu' : ''}">${merkkiHtml(k)}<small>${esc(M.nimi)}</small></button>`).join('')}</div>
     <label for="piste-nimi">Nimi</label><input id="piste-nimi" maxlength="40" autocomplete="off" value="${esc(p.nimi || '')}">
+    <label for="piste-kuvaus">Muistiinpano</label><textarea id="piste-kuvaus" rows="3" maxlength="1500">${esc(p.kuvaus || '')}</textarea>
     <div class="rivi" style="margin-top:8px"><button class="nappi" id="piste-tallenna">Tallenna</button>
       <button class="nappi toissijainen" id="piste-peruuta">Peruuta</button>${uusi ? '' : '<button class="nappi vaara" id="piste-poista">Poista</button>'}</div>`;
   el.hidden = false;
@@ -1324,9 +1332,9 @@ function avaaPisteDialogi(p) {
     merkki = b.dataset.merkki; el.querySelectorAll('[data-merkki]').forEach(x => x.classList.toggle('valittu', x === b));
   });
   $('piste-tallenna').onclick = () => {
-    const nimi = $('piste-nimi').value.trim().slice(0, 40);
-    if (uusi) PISTEET.push({ id: Date.now(), t: Date.now(), lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6), merkki, nimi });
-    else Object.assign(p, { merkki, nimi });
+    const nimi = $('piste-nimi').value.trim().slice(0, 40), kuvaus = $('piste-kuvaus').value.trim().slice(0, 1500);
+    if (uusi) PISTEET.push(Object.assign({ id: Date.now(), t: Date.now(), lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6), merkki, nimi }, kuvaus ? { kuvaus } : {}));
+    else { Object.assign(p, { merkki, nimi }); if (kuvaus) p.kuvaus = kuvaus; else delete p.kuvaus; }
     tallennaPisteet(); suljePaneeli(); paivitaJalkiTila();
   };
   $('piste-peruuta').onclick = suljePaneeli;
@@ -1340,6 +1348,7 @@ function naytaKohde(os) {
   if (!os) { suljePaneeli(); return; }
   if (os.laji === 'reika') { naytaReika(os.kohde); return; }
   if (os.laji === 'salmi') { naytaSalmi(os.kohde); return; }
+  if (os.laji === 'vaara') { naytaVaara(os.kohde); return; }
   if (os.laji === 'merkki') {
     el.innerHTML = `<b>${esc(PK.merkkiKuvaus(os.kohde))}</b><p class="pieni hiljainen" style="margin:6px 0">Väylävirasto, vesiväyläaineisto. Ei navigointiin.</p>
       <div class="rivi"><button class="nappi toissijainen" id="kohde-sulje">Sulje</button></div>`;
@@ -1350,6 +1359,7 @@ function naytaKohde(os) {
     const etGps = GPS ? ` · ${fi(PK.etaisyysM(GPS.lat, GPS.lon, p.lat, p.lon))} m sinusta` : '';
     el.innerHTML = `<div class="rivi" style="align-items:center">${merkkiHtml(p.merkki)}<div style="flex:1 1 auto"><b>${esc(p.nimi || M.nimi)}</b><br>
       <span class="pieni hiljainen">${esc(M.nimi)} · tallennettu ${pvmKlo(p.t)}${etGps}<br>${fi(p.lat, 5)} N, ${fi(p.lon, 5)} E</span></div></div>
+      ${p.kuvaus ? `<p class="pieni" style="margin:6px 0;white-space:pre-line">${esc(p.kuvaus)}</p>` : ''}
       <div class="rivi" style="margin-top:8px"><button class="nappi" id="kohde-muokkaa">Muokkaa</button><button class="nappi toissijainen" id="kohde-sulje">Sulje</button></div>`;
     el.hidden = false;
     $('kohde-muokkaa').onclick = () => avaaPisteDialogi(p);
@@ -1375,16 +1385,18 @@ function avaaKartta() {
       : (ASET.leiri.lat != null ? { lat: ASET.leiri.lat, lon: ASET.leiri.lon, z: 14 } : ALUEET.meri.kartta));
     KARTTA = new PK.Kartta($('kartta'), alku);
     KARTTA.jalki = JALKI; KARTTA.pisteet = PISTEET; KARTTA.reiat = REIAT; KARTTA.leiri = ASET.leiri; KARTTA.gps = GPS;
+    KARTTA.vaarat = (window.PILKKI_VAARAT && window.PILKKI_VAARAT.alueet) || [];
     KARTTA.onMuutos = () => { lataaSyvyydet(); lataaVaylat(); paivitaKarttaTila(); tallennaNakyma(); };
     KARTTA.onTap = (os, lat, lon) => {
       if (SALMI_PIIRTO) return salmiNapautus(lat, lon);
+      if (OTTI_PIIRTO) return ottiNapautus(lat, lon);
       if (LPAIKKA_PIIRTO) return lpaikkaNapautus(lat, lon);
       if (!os && (kerrosPaalla() || onJarvi())) { KARTTA.valittu = null; naytaMalliArvot(lat, lon); }
       else if (!os && naytaLpaikkaKohta(lat, lon)) KARTTA.valittu = null;
       else naytaKohde(os);
     };
     ANIM = new PK.VirtaAnimaatio(KARTTA, $('kartta-virta'));
-    KARTTA.onLongPress = (lat, lon) => { if (SALMI_PIIRTO || LPAIKKA_PIIRTO) return; KARTTA.valittu = null; avaaPisteDialogi({ lat, lon }); };
+    KARTTA.onLongPress = (lat, lon) => { if (SALMI_PIIRTO || LPAIKKA_PIIRTO || OTTI_PIIRTO) return; KARTTA.valittu = null; avaaPisteDialogi({ lat, lon }); };
     $('k-plus').onclick = () => KARTTA.zoomaa(2);
     $('k-koko').onclick = () => kokonaytto();
     $('k-kerrosnappi').onclick = () => document.body.classList.toggle('kerrokset-auki');
@@ -1403,6 +1415,7 @@ function avaaKartta() {
   lataaVaylat(); paivitaAnimaatio();
   if (onJarvi()) lataaJarviSyvyys();
   alustaLuotaukset().then(paivitaLpaikat);
+  korttiOttilista();
   korttiReika();
   KARTTA.koko(); lataaSyvyydet(); paivitaJalkiTila();
 }
@@ -2022,7 +2035,7 @@ function piirraTilanne(c) {
 const PR = window.PilkkiRetki;
 const RETKI_OLETUS = { kohde: '', km: 3, lahto: 'sij', lahtoMs: null, tunnit: 4, kuorma: 'keski', laji: 'ahven', syvyys: 5,
   kaytossa: null, massat: {}, jaa: null, tumma: null, lumi: null, sohjo: null,
-  auto: { tyyppi: 'diesel', km: 140, kulutus: 6.0, hinta: 1.75 }, bensa: 1.85 };
+  auto: { tyyppi: 'diesel', km: 140, kulutus: 6.0, hinta: 1.75, karry: 'ei' }, bensa: 1.85 };
 ASET.retki = Object.assign({}, RETKI_OLETUS, ASET.retki || {});
 ASET.retki.auto = Object.assign({}, RETKI_OLETUS.auto, ASET.retki.auto || {});
 const tallennaRetki = () => kirjoitaLS('pilkki_asetukset', ASET);
@@ -2040,6 +2053,7 @@ function retkiLahdot() {
   const out = [];
   if (SIJ) out.push({ k: 'sij', nimi: SIJ.nimi ? 'Valittu paikka: ' + SIJ.nimi : 'Valittu paikka / GPS', lat: SIJ.lat, lon: SIJ.lon });
   if (!onJarvi() && ASET.leiri && ASET.leiri.lat != null) out.push({ k: 'leiri', nimi: 'Leiri', lat: ASET.leiri.lat, lon: ASET.leiri.lon });
+  if (!onJarvi()) VAARAT.lahtopaikat.forEach((l, i) => out.push({ k: 'lahto:' + i, nimi: 'Lähtöpiste: ' + l.nimi, lat: l.lat, lon: l.lon }));
   for (const p of retkiKohteet()) out.push(Object.assign({}, p, { nimi: 'Piste: ' + p.nimi }));
   return out;
 }
@@ -2085,10 +2099,10 @@ function korttiRetki(c) {
   if (!R.lahtoMs || R.lahtoMs < nyt - 1800e3) R.lahtoMs = seurTunti;
   const J = retkiJaa(kohde, lahto);
   const kohvaRaja = J.teho != null ? kohvaraja(J.teho, (LUMI[J.laatu] || LUMI.tiivis).rho) : null;
-  const kaytossa = PR.VALINEET.filter(v => !R.kaytossa || R.kaytossa.includes(v.id));
+  const kaytossa = PR.VALINEET.filter(v => (R.kaytossa || PR.OLETUS_KAYTOSSA).includes(v.id));
   const o = { km: kmMatka, suunta, jaaCm: J.teho, lumi: J.lumi, sohjo: J.sohjo, kohvaRaja, kuorma: R.kuorma, laji: R.laji, syvyys: R.syvyys,
     saa: S, tunnit: R.tunnit, lahtoMs: R.lahtoMs, aurinko: retkiPimeat(paikka.lat, paikka.lon), massat: R.massat,
-    auto: { km: R.auto.km, kulutus: R.auto.kulutus, hinta: R.auto.hinta, ev: R.auto.tyyppi === 'ev' }, bensa: R.bensa };
+    auto: { km: R.auto.km, kulutus: R.auto.kulutus, hinta: R.auto.hinta, ev: R.auto.tyyppi === 'ev', karry: R.auto.karry }, bensa: R.bensa };
   const tulokset = PR.jarjesta(kaytossa.map(v => PR.arvioi(v, o))), paras = tulokset.find(PR.kelpaa);
   const tunnit = []; for (let t = seurTunti; t <= seurTunti + 48 * 3600e3; t += 3600e3) tunnit.push(t);
   const valinta = (id, arvot, nyk) => `<select id="${id}">${arvot.map(([v, t]) => `<option value="${esc(String(v))}" ${String(v) === String(nyk) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
@@ -2108,6 +2122,22 @@ function korttiRetki(c) {
     <p class="pieni hiljainen" style="margin:2px 0">Jää: ${esc(J.lahde || 'ei mittausta lähellä – syötä')}${R.jaa != null || R.lumi != null || R.sohjo != null ? ' <button class="nappi toissijainen pieni" id="rt-nollaa">Mittauksesta</button>' : ''}.
       Tehollinen = teräsjää + ½ jäähän kiinni jäätynyttä tummaa kohvajäätä; valkoista ei lasketa (Ilmatieteen laitos).</p>
     <div class="rivi"><div><label for="rt-kuorma">Kuorma</label>${valinta('rt-kuorma', [['kevyt', 'Kevyt (reppu + kaira)'], ['keski', 'Keski (ahkio + luotain)'], ['raskas', 'Raskas (teltta, kamiina, 2 hlö)']], R.kuorma)}</div></div>`;
+  // reitti linnuntietä ja tunnetut vaarat (Petolahden infotaulu, omat vaarapisteet, mitatut salmet)
+  if (kohde && lahto) {
+    const omat = PISTEET.filter(x => x && x.merkki === 'vaara' && x.lat != null).map(x => ({ lat: x.lat, lon: x.lon, nimi: x.nimi || 'oma vaarapiste', sade: 100 }));
+    const rv = PR.reittiVaarat(lahto, kohde, VAARAT.alueet, omat, SALMET, 300), nahty = new Set(), rivit = [];
+    for (const x of rv) {
+      const avain = x.laji + x.nimi + (x.d === 0 ? 0 : 1); if (nahty.has(avain)) continue; nahty.add(avain);
+      if (x.laji === 'salmi') rivit.push([3, `ylittää mitatun salmen ${x.nimi}: virtaus syö jäätä`]);
+      else if (x.alussa || x.lopussa) rivit.push([3, `${x.alussa ? 'lähtö' : 'kohde'} on tunnetulla virtapaikalla: ${x.nimi}`]);
+      else if (x.d === 0) rivit.push([3, `kulkee virtapaikan läpi: ${x.nimi} – kierrä`]);
+      else rivit.push([x.d <= 100 ? 2 : 1, `${fi(Math.round(x.d / 10) * 10)} m päässä ${x.laji === 'piste' ? 'oma vaarapiste' : 'virtapaikka'}: ${x.nimi}`]);
+    }
+    h += `<div style="border-left:4px solid ${HAITTA_VARI[rivit.length ? Math.max(...rivit.map(r => r[0])) : 0]};padding-left:8px;margin:8px 0">
+      <b class="pieni">Reitti linnuntietä</b>${rivit.length ? `<ul class="pieni" style="margin:2px 0 2px 18px">${rivit.map(([t, x]) => `<li style="color:${HAITTA_VARI[t]}">${esc(x)}</li>`).join('')}</ul>`
+        : `<p class="pieni" style="margin:2px 0">Ei tunnettuja virtapaikkoja 300 m:n sisällä.</p>`}
+      <p class="pieni hiljainen" style="margin:2px 0">Kartalla on toistaiseksi vain Petolahden infotaulun virtapaikat sekä omat vaarapisteet ja salmet – merkitsemätön ei tarkoita hyvää jäätä.</p></div>`;
+  }
   if (!S) h += `<p class="pieni"><b>Sääennustetta ei ole tälle paikalle.</b> Arvio ilman säätä.</p>`;
   else if (sv.km > 25) h += `<p class="pieni hiljainen">Ennuste ${esc(S.nimi)}, ${fi(sv.km)} km päästä.</p>`;
   if (J.teho == null) h += `<p class="pieni"><b>Jään paksuus puuttuu:</b> syötä mitattu teräsjää, niin kulkuvälineet voidaan verrata.</p>`;
@@ -2134,9 +2164,9 @@ function korttiRetki(c) {
       <b>${esc(r.v.nimi)}</b> · ${tila(r)} (${fi(r.vaad, 1)} cm) · ${r.jumi ? `<b>${esc(r.jumi)}</b>` : `${fi(r.menoMin)} / ${fi(r.paluuMin)} min`}${r.kapOk ? '' : ' · kuorma ei mahdu'}
       · purevuus ${fi(Math.min(r.hyyMeno ?? 99, r.hyyPaluu ?? 99))} °C · 60 min: ${fi(r.etenema60, 1)} km${r.kulut ? ` · ${fi(r.kulut.yht, 1)} €` : ''}</div>`).join('')}</div>`;
   h += `<details><summary>Kulkuvälineet ja massat</summary>
-      <p class="pieni hiljainen">Massa = väline + kuljettaja + varusteet. Vaadittu jää: Ilmatieteen laitoksen taulukko (20 cm / 2,0 t … 100 cm / 48 t),
+      <p class="pieni hiljainen">Oletuksena käytössä nastakengät + ahkio, potkukelkka ja sähköpyörä + ahkio. Massa = väline + kuljettaja + varusteet. Vaadittu jää: Ilmatieteen laitoksen taulukko (20 cm / 2,0 t … 100 cm / 48 t),
         alle 2 t Goldin kaava h = √(m/5) [L], jalan vähintään 5 cm (SUH). Mönkijän kuivapaino 332 kg (Polaris) [T], muut [O].</p>
-      ${PR.VALINEET.map(v => `<div class="rivi" style="align-items:center"><label class="kytkin" style="flex:2"><input type="checkbox" data-rt-v="${v.id}" ${!R.kaytossa || R.kaytossa.includes(v.id) ? 'checked' : ''}> ${esc(v.nimi)}</label>
+      ${PR.VALINEET.map(v => `<div class="rivi" style="align-items:center"><label class="kytkin" style="flex:2"><input type="checkbox" data-rt-v="${v.id}" ${(R.kaytossa || PR.OLETUS_KAYTOSSA).includes(v.id) ? 'checked' : ''}> ${esc(v.nimi)}</label>
         <div style="flex:1"><input type="number" inputmode="numeric" min="50" max="3000" data-rt-m="${v.id}" value="${R.massat[v.id] || v.massa}" aria-label="massa kg"></div><span class="pieni">kg</span></div>`).join('')}</details>
     <details><summary>Kala ja pysäköinti</summary><div class="rivi">
       <div><label for="rt-laji">Kohdekala</label>${valinta('rt-laji', [['ahven', 'Iso ahven (arka)'], ['siika', 'Siika (arka)'], ['kuha', 'Kuha'], ['hauki', 'Hauki / made']], R.laji)}</div>
@@ -2144,11 +2174,18 @@ function korttiRetki(c) {
       <p class="pieni hiljainen">Pysäköintietäisyys on Geminin kokemussääntö (lumi vaimentaa, peilijää ja matala vesi kantavat ääntä) [O]. Karkotusprosentteja ei näytetä: niille ei ole lähdettä.</p></details>
     <details><summary>Auto ja kärry</summary><div class="rivi">
       <div><label for="rt-auto">Auto</label>${valinta('rt-auto', [['diesel', 'Diesel'], ['bensa', 'Bensa'], ['ev', 'Sähkö']], R.auto.tyyppi)}</div>
-      <div><label for="rt-akm">Tie km (meno-paluu)</label><input id="rt-akm" type="number" inputmode="numeric" value="${R.auto.km}"></div></div>
+      <div><label for="rt-akm">Tie km (meno-paluu)</label><input id="rt-akm" type="number" inputmode="numeric" value="${R.auto.km}"></div>
+      <div><label for="rt-karry">Peräkärry</label>${valinta('rt-karry', [['ei', 'Ei kärryä'], ['kuomu', 'Kuomukärry 3,5 m']], R.auto.karry || 'ei')}</div></div>
       <div class="rivi"><div><label for="rt-kul">Kulutus /100 km</label><input id="rt-kul" type="number" inputmode="decimal" step="0.1" value="${R.auto.kulutus}"></div>
       <div><label for="rt-hinta">${R.auto.tyyppi === 'ev' ? '€/kWh' : '€/l'}</label><input id="rt-hinta" type="number" inputmode="decimal" step="0.01" value="${R.auto.hinta}"></div>
       <div><label for="rt-bensa">Jäällä €/l</label><input id="rt-bensa" type="number" inputmode="decimal" step="0.01" value="${R.bensa}"></div></div>
-      <p class="pieni hiljainen">Kärryn lisäkulutus +18 % kevyt / +35 % raskas (sähköauto +25 / +48 %) ja välineiden l/h ovat Geminin arvioita [O]. Hinnat ovat oletuksia – vaihda omiin.</p></details>
+      <p class="pieni hiljainen">Kuomukärryn lisäkulutus +35 % (sähköauto +48 %) ja moottorivälineiden l/h ovat Geminin arvioita [O]. Hinnat ovat oletuksia – vaihda omiin.</p></details>
+    ${(() => { const A = onJarvi() ? ASET.alue : 'meri', L = VAARAT.ilmanSijaintia.filter(x => x.alue === A); if (!L.length) return '';
+      const osat = [...new Set(L.map(x => x.osa))];
+      return `<details><summary>Tunnetut heikot kohdat ilman karttasijaintia (${L.length})</summary>
+        ${osat.map(o => `<p class="pieni" style="margin:6px 0 2px"><b>${esc(o)}</b></p>` + L.filter(x => x.osa === o).map(x => `<p class="pieni" style="margin:0 0 4px"><b>${esc(x.nimi)}</b>: ${esc(x.teksti)}</p>`).join('')).join('')}
+        <p class="pieni hiljainen">${esc(VAARAT.lahteet.gemini ? VAARAT.lahteet.gemini.nimi + '. ' + VAARAT.lahteet.gemini.huom : '')}</p></details>`; })()}
+    <p class="pieni"><a href="${HAZOR_URL}" target="_blank" rel="noopener">Vaarallisten jäiden kartta (hazor.iki.fi, satelliittiaineisto) ↗</a></p>
     <p class="pieni hiljainen">Ei kerro, kantaako jää: ohje on suurin sallittu massa ehjälle, tasalaatuiselle jäälle. Halkeamalla kantavuus puolittuu ja risteävillä halkeamilla neljännes (Ilmatieteen laitos). Mittaa jää kulkiessa.
       Purevuus kulkiessa: tuuli ja oma nopeus yhdessä, FMI:n pakkasvaroituksen tasot −25 / −35 / −40 °C (Keski-Suomi).</p>`;
   el.innerHTML = h;
@@ -2167,6 +2204,7 @@ function korttiRetki(c) {
   if ($('rt-nollaa')) $('rt-nollaa').onclick = () => { R.jaa = R.lumi = R.sohjo = null; tallennaRetki(); korttiRetki(konteksti()); };
   $('rt-laji').onchange = e => aseta('laji', e.target.value);
   $('rt-syv').onchange = e => aseta('syvyys', +e.target.value);
+  $('rt-karry').onchange = e => { R.auto = Object.assign({}, R.auto, { karry: e.target.value }); tallennaRetki(); korttiRetki(konteksti()); };
   $('rt-auto').onchange = e => { const t = e.target.value, oletus = { diesel: [6.0, 1.75], bensa: [7.4, 1.85], ev: [21, 0.22] }[t];
     R.auto = Object.assign({}, R.auto, { tyyppi: t, kulutus: oletus[0], hinta: oletus[1] }); tallennaRetki(); korttiRetki(konteksti()); };
   for (const [id, k, min, max] of [['rt-akm', 'km', 1, 2000], ['rt-kul', 'kulutus', 0.5, 60], ['rt-hinta', 'hinta', 0.01, 5]])
@@ -2182,7 +2220,7 @@ function korttiRetki(c) {
 // ---- karttakerrokset
 let ANIM = null;
 const VAYLA_TILA = new Map();
-const KERROS_NIMET = [['jaa', 'Jää'], ['pohja', 'Pohja °C'], ['virta', 'Virta'], ['tuuli', 'Tuuli'], ['vaylat', 'Väylät']];
+const KERROS_NIMET = [['jaa', 'Jää'], ['pohja', 'Pohja °C'], ['virta', 'Virta'], ['tuuli', 'Tuuli'], ['vaylat', 'Väylät'], ['vaarat', 'Vaarat']];
 function kerrosPaalla() { const k = ASET.kerrokset || {}; return onJarvi() ? !!k.tuuli : !!(k.jaa || k.pohja || k.virta || k.tuuli); }   // aikariippuvat
 function kerrosAika() { const t = Date.now() + KERROS.tunnit * 3600e3; return Math.round(t / 3600e3) * 3600e3; }
 function sidoKerrokset() {
@@ -2215,7 +2253,7 @@ function lataaVaylat() {
 function korttiKerrokset() {
   const el = $('k-kerrokset'); if (!el) return;
   const k = ASET.kerrokset, V = VESI && VESI.virta;
-  const nimet = onJarvi() ? KERROS_NIMET.filter(([a]) => a === 'tuuli' || a === 'vaylat') : KERROS_NIMET;
+  const nimet = onJarvi() ? KERROS_NIMET.filter(([a]) => a === 'tuuli' || a === 'vaylat' || a === 'vaarat') : KERROS_NIMET;
   let h = `<div class="valitsin">${nimet.map(([a, t]) => `<button data-kerros="${a}" class="${k[a] ? 'valittu' : ''}">${t}</button>`).join('')}</div>`;
   if (onJarvi()) {
     const P = KARTTA && KARTTA.jarvet.find(x => x.tunnus === alue().syvyys);
@@ -2235,6 +2273,7 @@ function korttiKerrokset() {
   if (meri && k.virta) sel.push('<span style="--c:#4fd3ff">virta &lt; 5 cm/s</span><span style="--c:#ffc928">5–10</span><span style="--c:#ff4081">&gt; 10</span>');
   if (k.tuuli) sel.push('<span style="--c:#ffffff">tuuli: nuoli = mihin puhaltaa, keski/puuska</span>');
   if (k.vaylat) sel.push('<span style="--c:#ffd166">väylä, luku = mitoitussyväys</span><span>merimerkit, kun näkymä on alle 5,5 km leveä</span>');
+  if (k.vaarat !== false) sel.push('<span style="--c:#d81e1e">tunnettu virtapaikka (suuntaa-antava, napauta)</span>');
   if (SALMET.length) sel.push('<span style="--c:#4fd3ff">salmi &lt; 5 cm/s</span><span style="--c:#ffc928">5–15</span><span style="--c:#ff4081">&gt; 15</span>');
   if (sel.length) h += `<div class="selite">${sel.join('')}</div>`;
   h += '<p class="pieni hiljainen" id="kerros-lahde"></p>';
@@ -2264,6 +2303,7 @@ function korttiKerrokset() {
     if (meri && k.virta) osat.push(V ? 'virta: malli, 3 h välein' : VESI_TILA === 'lataa' ? 'virta: ladataan…' : 'virtausdataa ei ole');
     if (k.tuuli) osat.push('tuuli: HARMONIE-pisteet');
     if (k.vaylat) osat.push('väylät: Väylävirasto');
+    if (k.vaarat !== false) osat.push('virtapaikat: Petolahden infotaulu 2021 (muilla alueilla ei vielä karttasijainteja)');
     const e = $('kerros-lahde'); if (e) e.textContent = osat.join(' · ');
   };
   const r = $('kerros-aika');
@@ -2839,6 +2879,52 @@ function korttiLuotaus() {
   });
 }
 
+// ---- ottipaikat ilman sijaintia (Hannun Gemini-kooste 28.11.2026; vain puhelimessa) -> sijoitetaan napauttamalla
+let OTTILISTA = lueLS('pilkki_ottilista', []) || [];
+let OTTI_PIIRTO = null;
+const tallennaOttilista = () => { if (!kirjoitaLS('pilkki_ottilista', OTTILISTA)) alert('Ottipaikkojen tallennus puhelimeen epäonnistui (tila täynnä?).'); korttiOttilista(); };
+function korttiOttilista() {
+  const el = $('ottilista'); if (!el) return;
+  if (!OTTILISTA.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<details><summary>Ottipaikat ilman sijaintia (${OTTILISTA.length})</summary>
+    <p class="pieni hiljainen">Tuotu tiedostosta ilman koordinaatteja. Sijoita kartalle napauttamalla, niin paikasta tulee piste muistiinpanoineen.</p>
+    ${OTTILISTA.map(x => `<div class="lt-rivi pieni"><b>${esc(x.nimi)}</b>${x.alue ? ' · ' + esc(x.alue) : ''}<br><span style="white-space:pre-line">${esc(x.kuvaus || '')}</span>
+      <div class="rivi"><button class="nappi toissijainen pieni" data-otti="${esc(x.id)}">Sijoita kartalle</button><button class="nappi toissijainen pieni" data-otti-pois="${esc(x.id)}">Poista</button></div></div>`).join('')}</details>`;
+  el.querySelectorAll('[data-otti]').forEach(b => b.onclick = () => {
+    const x = OTTILISTA.find(o => o.id === b.dataset.otti); if (!x) return;
+    if (NAKYVA !== 'kartta') vaihdaRuutu('kartta');
+    if (!KARTTA) return;
+    if (SALMI_PIIRTO) lopetaSalmiPiirto(); if (LPAIKKA_PIIRTO) lopetaLpaikka();
+    suljePaneeli(); OTTI_PIIRTO = x; KARTTA.vainNapautus = true; KARTTA.seuraa = false; paivitaKarttaTila();
+    $('karttakehys').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+  el.querySelectorAll('[data-otti-pois]').forEach(b => b.onclick = () => {
+    const x = OTTILISTA.find(o => o.id === b.dataset.ottiPois); if (!x || !confirm(`Poistetaanko ${x.nimi} listalta?`)) return;
+    OTTILISTA = OTTILISTA.filter(o => o !== x); tallennaOttilista();
+  });
+}
+function lopetaOtti() { OTTI_PIIRTO = null; if (KARTTA) KARTTA.vainNapautus = false; paivitaKarttaTila(); }
+function ottiNapautus(lat, lon) {
+  const x = OTTI_PIIRTO; lopetaOtti(); if (!x) return;
+  const p = Object.assign({ id: Date.now(), t: Date.now(), lat: +lat.toFixed(6), lon: +lon.toFixed(6), merkki: x.merkki || 'hyva', nimi: x.nimi.slice(0, 40), ottiId: x.id },
+    x.kuvaus ? { kuvaus: x.kuvaus } : {});
+  PISTEET.push(p); tallennaPisteet(); OTTILISTA = OTTILISTA.filter(o => o !== x); tallennaOttilista();
+  KARTTA.pisteet = PISTEET; KARTTA.piirra(); naytaKohde({ laji: 'piste', kohde: p }); ilmoitus(`Sijoitettu: ${p.nimi}`);
+}
+
+// ---- tunnetut virtapaikat (vaarat.js, v010)
+const VAARAT = window.PILKKI_VAARAT || { lahteet: {}, alueet: [], lahtopaikat: [], ilmanSijaintia: [] };
+const HAZOR_URL = 'https://hazor.iki.fi/ice/danger';
+function naytaVaara(V) {
+  const el = $('karttapaneeli'), L = VAARAT.lahteet[V.lahde] || {};
+  el.innerHTML = `<b>${esc(V.nimi)}</b> <span class="pieni hiljainen">tunnettu virtapaikka</span>
+    <p class="pieni" style="margin:6px 0">${V.teksti ? esc(V.teksti) + ' ' : ''}Jää voi olla heikko tai sula koko talven. Kierrä kaukaa, älä ylitä ajoneuvolla.</p>
+    <p class="pieni hiljainen" style="margin:4px 0">Lähde: ${esc(L.nimi || V.lahde)}. ${esc(L.huom || '')}</p>
+    <p class="pieni hiljainen" style="margin:4px 0">Merkitsemätön kohta ei tarkoita hyvää jäätä. Katso myös <a href="${HAZOR_URL}" target="_blank" rel="noopener">vaarallisten jäiden kartta (hazor.iki.fi)</a>.</p>
+    <div class="rivi"><button class="nappi toissijainen" id="ma-sulje">Sulje</button></div>`;
+  el.hidden = false; $('ma-sulje').onclick = suljePaneeli;
+}
+
 // ---- kokonäyttö
 let KOKO = false;
 function kokonaytto(paalle) {
@@ -2884,7 +2970,7 @@ function vaihdaRuutu(nimi) {
   document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'ruutu-' + nimi);
   window.scrollTo(0, 0);
   if (nimi === 'kartta') avaaKartta();
-  else { if (SALMI_PIIRTO) lopetaSalmiPiirto(); if (LPAIKKA_PIIRTO) lopetaLpaikka(); if (KOKO) kokonaytto(false); }
+  else { if (SALMI_PIIRTO) lopetaSalmiPiirto(); if (LPAIKKA_PIIRTO) lopetaLpaikka(); if (OTTI_PIIRTO) lopetaOtti(); if (KOKO) kokonaytto(false); }
   gpsSeuranta(); paivitaAnimaatio();
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaihdaRuutu(b.dataset.ruutu));
