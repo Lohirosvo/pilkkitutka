@@ -269,7 +269,7 @@
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v014';
+const VERSIO = 'v015';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -2931,9 +2931,16 @@ const HAZOR_URL = 'https://hazor.iki.fi/ice/danger';
 // [T] hazor vaara.js 28.11.2026: selitteen värit ja api/heikko-jaa -> { luokka, paivia, ranni }
 const HAZOR_SELITE = [['#fff09a', '2–4'], ['#ffd60a', '5–9'], ['#ff8c00', '10–19'], ['#dc1e28', '20–39'], ['#78005a', '40+'], ['#1e64c8', 'ränni']];
 const hazorLinkki = (lat, lon) => `${HAZOR_URL}#15/${lat.toFixed(5)}/${lon.toFixed(5)}`;
+// [T hakuajon koetus 28.11.2026] api vastaa, mutta ilman Access-Control-Allow-Origin-otsaketta: selain ei anna sivulle vastausta.
+// Kysely tehdään vasta, kun hakuajon koetus näkee otsakkeen (kysytään Tommilta) – ei turhia pyyntöjä eikä koordinaatteja turhaan.
+const hazorKyselySallittu = () => !!(DATA && DATA.hazor && DATA.hazor.acao && DATA.hazor.acao.api);
 function hazorKohta(lat, lon, id) {
   const ulos = h => { const e = $(id); if (e) e.innerHTML = h; };
   const linkki = `<a href="${hazorLinkki(lat, lon)}" target="_blank" rel="noopener">Avaa kohta hazor-kartassa ↗</a>`;
+  if (!hazorKyselySallittu()) {
+    ulos(`Heikot jäät: väri kartalla (selite kerroksissa). Kohdan luokka ja rännit: ${linkki} <span class="hiljainen">– Tommi Lahtonen, hazor.iki.fi.</span>`);
+    return;
+  }
   ulos('Heikot jäät (hazor): kysytään…');
   const ohi = new AbortController(), ajastin = setTimeout(() => ohi.abort(), 8000);
   fetch(`${PK.HAZOR_JUURI}api/heikko-jaa?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&kieli=fi`, { headers: { Accept: 'application/json' }, signal: ohi.signal })
@@ -2952,7 +2959,7 @@ function naytaHazorKohta(lat, lon) {
   const el = $('karttapaneeli');
   el.innerHTML = `<b>Kohta</b> <span class="pieni hiljainen">${fi(lat, 4)} N, ${fi(lon, 4)} E</span>
     <p class="pieni" id="hz-tulos" style="margin:6px 0"></p>
-    <p class="pieni hiljainen" style="margin:4px 0">Kysely lähettää napautetun kohdan koordinaatit hazor.iki.fi:hin (ei muuta tietoa). Ei kerro, kantaako jää.</p>
+    <p class="pieni hiljainen" style="margin:4px 0">${hazorKyselySallittu() ? 'Kysely lähettää napautetun kohdan koordinaatit hazor.iki.fi:hin (ei muuta tietoa). ' : ''}Merkitsemätön kohta ei tarkoita hyvää jäätä. Ei kerro, kantaako jää.</p>
     <div class="rivi"><button class="nappi toissijainen" id="hz-sulje">Sulje</button></div>`;
   el.hidden = false; $('hz-sulje').onclick = suljePaneeli;
   hazorKohta(lat, lon, 'hz-tulos');
