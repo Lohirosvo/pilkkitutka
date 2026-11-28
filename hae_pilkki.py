@@ -14,6 +14,7 @@ Vaiheet (jokainen omassa try-lohkossaan – yhden lähteen kaatuminen ei estä m
   5. jaa_malli     Copernicus BAL phy (2 km): jään peittävyys ja paksuus, analyysi + ennuste
   6. jaakartta     Copernicus SEAICE BAL: FMI:n/SMHI:n jääkarttoihin perustuva paksuus
   7. vk_tilasto    (vain --tilasto) mareografien talvihistoria leirin vedenkorkeusvahtia varten
+  (v011) purot     MML INSPIRE-vesistöt: purojen viimeiset 400 m ennen rantaa, meri ja järvet (hae_purot.py, 30 vrk)
 
 Tarkistetut rajapintatiedot (FMI avoin data, 23.11.2026):
   - mareografin parametrit WATLEV, WLEVN2K_PT1S_INSTANT, TW_PT1H_AVG; vedenkorkeus millimetreinä
@@ -35,7 +36,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v010"
+VERSIO = "v011"
 UA = "pilkkitutka/v008 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
@@ -94,6 +95,14 @@ JARVI_TUORE_VRK = 120
 # Väylät järvelle (Väyläviraston aineisto kattaa myös sisävesiväylät) [O: vain Lappajärvellä on merkittyjä väyliä]
 VAYLA_LISA_ALUEET = [
     {"nimi": "lappajarvi", "otsikko": "Lappajärvi", "alue": {"lat_min": 63.00, "lat_max": 63.32, "lon_min": 23.45, "lon_max": 23.90}},
+]
+# v011 purot (Hannu 28.11.2026 "Haetaan purot sekä meri että järvi"): meren kolme osa-aluetta kuten syvyyskäyrät, järvet
+# syvyysruudukon rajoista + noin 1 km reunus [L, jarvisyvyys.js: Lappajärvi 63,047–63,265 / 23,543–23,800;
+# Hirvijärvi 62,769–62,841 / 23,045–23,176; Varpula 62,784–62,812 / 23,121–23,177].
+PURO_JARVI_ALUEET = [
+    {"nimi": "lappajarvi", "otsikko": "Lappajärvi", "alue": {"lat_min": 63.035, "lat_max": 63.275, "lon_min": 23.52, "lon_max": 23.82}},
+    {"nimi": "hirvijarvi_varpula", "otsikko": "Hirvijärvi ja Varpula",
+     "alue": {"lat_min": 62.755, "lat_max": 62.852, "lon_min": 23.02, "lon_max": 23.20}},
 ]
 
 SAA_PARAMS = "Temperature,WindSpeedMS,WindGust,WindDirection,PrecipitationAmount,TotalCloudCover,Pressure,RadiationGlobal"
@@ -642,6 +651,30 @@ def hae_vaylat_alueet(data_kansio):
         tulos.append(rivi)
     if not any(r.get("tila") in ("ok", "vanha") for r in tulos):
         raise RuntimeError("yhdenkään osa-alueen väylät eivät onnistuneet: "
+                           + " | ".join(str(r.get("viesti", "")) for r in tulos)[:400])
+    return tulos
+
+
+def hae_purot_alueet(data_kansio):
+    """MML:n INSPIRE-vesistöistä purojen viimeiset 400 m ennen rantaa (hae_purot.py) meren osa-alueille ja järville.
+    Alle 30 vrk vanha julkaistu tiedosto käytetään sellaisenaan."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import hae_purot
+    tulos = []
+    for a in SYVYYS_ALUEET + PURO_JARVI_ALUEET:
+        kansio = os.path.join(data_kansio, "purot", a["nimi"])
+        os.makedirs(kansio, exist_ok=True)
+        print(f"  {a['nimi']} ({a['otsikko']})")
+        tila = hae_purot.paivita(kansio, f"{SIVU}data/purot/{a['nimi']}/", loki=lambda s: print("    " + str(s)), alue=a["alue"])
+        rivi = dict(a, polku=f"data/purot/{a['nimi']}/purot.json", **(tila or {}))
+        polku = os.path.join(kansio, "purot.json")
+        if os.path.exists(polku):
+            rivi["kt"] = round(os.path.getsize(polku) / 1024)
+        else:
+            rivi["polku"] = None
+        tulos.append(rivi)
+    if not any(r.get("tila") in ("ok", "vanha") for r in tulos):
+        raise RuntimeError("yhdenkään alueen purot eivät onnistuneet: "
                            + " | ".join(str(r.get("viesti", "")) for r in tulos)[:400])
     return tulos
 
@@ -1230,6 +1263,8 @@ def main(argv=None):
                                   ed.get("syvyys_alueet"))
     data["vaylat_alueet"] = vaihe("vaylat", lambda: hae_vaylat_alueet(os.path.dirname(os.path.abspath(args.ulos))),
                                   ed.get("vaylat_alueet"))
+    data["purot_alueet"] = vaihe("purot", lambda: hae_purot_alueet(os.path.dirname(os.path.abspath(args.ulos))),
+                                 ed.get("purot_alueet"))
     # epäonnistuessa työnkulku on jo kopioinut edellisen vesi.json:n paikalleen -> viittaus edelliseen
     data["vesi"] = vaihe("vesi", lambda: hae_vesi(nyt, os.path.dirname(os.path.abspath(args.ulos))), ed.get("vesi"))
     data["jarvet"] = vaihe("jarvet", lambda: hae_jarvet(nyt, ed.get("jarvet")), ed.get("jarvet"))

@@ -1,4 +1,7 @@
-/* Pilkkitutka – kartta.js v008 (24.11.2026)
+/* Pilkkitutka – kartta.js v012 (28.11.2026)
+ * v012 (Hannu 28.11.: "Haetaan purot sekä meri että järvi. Ei erillisiä varoituksia puro varoittaa itsestään."):
+ *      purot (MML INSPIRE-vesistöt, hae_purot.py): viimeiset 400 m ennen rantaa tummanturkoosina, suu pisteenä.
+ *      Turkoosi valittu, koska siniset ovat syvyyksiä ja ränniä, vaaleansininen heikkoa virtaa.
  * v008 (Hannu 24.11.: "Miksi ei käyriä kartoissa. Merellä on?"): järvien syvyyskäyrät samaan kerrokseen kuin meren käyrät, tummempi tyyli.
  *      Omat Lowrance-käyrät (luotaus.js) ruskeina, pilkkipaikan rajaus katkoviivalla.
  * v010 (Hannu 28.11.): tunnetut virtapaikat (vaarat.js) punaisina alueina, napautus näyttää lähteen.
@@ -158,6 +161,30 @@
     };
     return { luotu: j.luotu, lahde: j.lahde, linjat: (j.linjat || []).map(pura).filter(Boolean), alueet: (j.alueet || []).map(pura).filter(Boolean),
       merkit: (j.merkit || []).filter(m => m && Array.isArray(m.p) && m.p.length === 2 && isFinite(m.p[0]) && isFinite(m.p[1])) };
+  }
+  // ------------------------------------------------------------ purot (MML INSPIRE-vesistöt, hae_purot.py v1)
+  const PURO_VARI = '#00897b';
+  /** purot.json -> { luotu, linjat: [{ m, ll, la0, la1, lo0, lo1, l }], suut: [[lat, lon]] } tai null. */
+  function puraPurot(j) {
+    if (!j || !Array.isArray(j.linjat) || !Array.isArray(j.origo)) return null;
+    const [olat, olon] = j.origo, kk = j.kerroin || 100000;
+    const linjat = [];
+    for (const a of j.linjat) {
+      const koodi = a && a.k;
+      if (!Array.isArray(koodi) || koodi.length < 4) continue;
+      const n = koodi.length >> 1, m = new Float64Array(n * 2), ll = new Float64Array(n * 2);
+      let x = 0, y = 0, la0 = 90, la1 = -90, lo0 = 180, lo1 = -180;
+      for (let i = 0; i < n; i++) {
+        x += koodi[2 * i]; y += koodi[2 * i + 1];
+        const lat = olat + y / kk, lon = olon + x / kk;
+        m[2 * i] = mx(lon); m[2 * i + 1] = my(lat); ll[2 * i] = lat; ll[2 * i + 1] = lon;
+        if (lat < la0) la0 = lat; if (lat > la1) la1 = lat; if (lon < lo0) lo0 = lon; if (lon > lo1) lo1 = lon;
+      }
+      linjat.push({ m, ll, la0, la1, lo0, lo1, l: a.l === 2 ? 2 : 1 });
+    }
+    const suut = [], s = Array.isArray(j.suut) ? j.suut : [];
+    for (let i = 0; i + 1 < s.length; i += 2) if (isFinite(s[i]) && isFinite(s[i + 1])) suut.push([olat + s[i + 1] / kk, olon + s[i] / kk]);
+    return { luotu: j.luotu, lahde: j.lahde, pituus_m: j.pituus_m, linjat, suut };
   }
   /** Lähin väylä (linja tai alueen reuna) metreinä: { m, syvyys } tai null. */
   function lahinVayla(lista, lat, lon, rajaM) {
@@ -390,6 +417,7 @@
       this.kerrokset = { jaa: false, virta: false, tuuli: false }; this.aika = Date.now(); this.virtaTaso = 0;
       this.jaaMalli = null; this.vesi = null; this.saa = null;
       this.vaylat = [];            // puraVaylat-tulokset osa-alueittain
+      this.purot = [];             // puraPurot-tulokset alueittain (v012)
       this.salmet = []; this.salmiVirtaFn = null; this.salmiLuonnos = null; this.vainNapautus = false;
       this.vaarat = [];            // vaarat.js: { id, nimi, reuna: [[lat, lon], ...], keski }
       this.jarvet = [];            // puraJarvi-tulokset
@@ -449,6 +477,7 @@
       this._jarviSyvyys();
       this._syvyys();
       if (this.kerrokset.hazor !== false) this._hazor();
+      if (this.kerrokset.purot !== false) this._purot();
       if (this.kerrokset.vaarat !== false) this._vaarat();
       if (this.kerrokset.vaylat) this._vaylat();
       if (this.kerrokset.virta) this._virtaKerros();
@@ -502,6 +531,32 @@
         const img = this._hazorLaatta(taso, zt, x, y);
         if (img.complete && !img._virhe && img.naturalWidth)
           g.drawImage(img, x * koko - kx + this.w / 2, y * koko - ky + this.h / 2, koko + 0.5, koko + 0.5);
+      }
+      g.restore();
+    }
+    /** Purot: valkoinen reunus + turkoosi viiva (2–5 m leveämpi), suu pisteenä. Viivat z ≥ 11, suut z ≥ 10. */
+    _purot() {
+      if (!this.purot.length || this.z < 10) return;
+      const g = this.g, A = this.nakyvaAlue(), nakyy = v => !(v.la1 < A.lat_min || v.la0 > A.lat_max || v.lo1 < A.lon_min || v.lo0 > A.lon_max);
+      const viiva = v => { const m = v.m; for (let i = 0; i < m.length; i += 2) { const [x, y] = this.ruutuM(m[i], m[i + 1]); i ? g.lineTo(x, y) : g.moveTo(x, y); } };
+      const k = this.z >= 14 ? 1.5 : this.z >= 12.5 ? 1.15 : 0.9;
+      g.save(); g.lineJoin = 'round'; g.lineCap = 'round';
+      if (this.z >= 11) {
+        for (const [vari, lisa] of [['rgba(255,255,255,0.92)', 2.6], [PURO_VARI, 0]]) {
+          for (const luokka of [1, 2]) {
+            g.strokeStyle = vari; g.lineWidth = ((luokka === 2 ? 3.4 : 2.2) + lisa) * k;
+            g.beginPath();
+            for (const P of this.purot) for (const v of P.linjat) if (v.l === luokka && nakyy(v)) viiva(v);
+            g.stroke();
+          }
+        }
+      }
+      const r = (this.z >= 13 ? 4 : this.z >= 11 ? 3.2 : 2.4) * (k > 1 ? 1.15 : 1);
+      g.fillStyle = PURO_VARI; g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 1.6;
+      for (const P of this.purot) for (const [lat, lon] of P.suut) {
+        const [x, y] = this.ruutu(lat, lon);
+        if (x < -10 || y < -10 || x > this.w + 10 || y > this.h + 10) continue;
+        g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke();
       }
       g.restore();
     }
@@ -1107,7 +1162,7 @@
 
   const PilkkiKartta = { TILE, HAZOR_JUURI, mx, my, mLat, mLon, etaisyysM, JALKI, jalkiLisaa, jalkiAlfa, jalkiOsat, PYSAHDYS, pysahdykset,
     puraSyvyys, MERKIT, REIKA, LAJIT, reikaViimeisin, aktiivinenReika, saalisYhteenveto, paalaji, lajiTeksti, yhteenvetoTeksti,
-    lajienSyvyydet, syvTeksti, jaaVari, JAA_SELITE, lahinAika, puraVaylat, lahinVayla, merkkiTyyli, merkkiKuvaus, lampoVari,
+    lajienSyvyydet, syvTeksti, jaaVari, JAA_SELITE, lahinAika, puraVaylat, puraPurot, PURO_VARI, lahinVayla, merkkiTyyli, merkkiKuvaus, lampoVari,
     LAMPO_ASTEIKKO, kayratJanalla, kentta, VirtaAnimaatio, luokkaRajat, puraJarvi, jarviSyvyys, JARVI_VARIT, Kartta };
   if (typeof module !== 'undefined' && module.exports) module.exports = PilkkiKartta;
   else root.PilkkiKartta = PilkkiKartta;
