@@ -35,7 +35,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v009"
+VERSIO = "v010"
 UA = "pilkkitutka/v008 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
@@ -1021,6 +1021,177 @@ def hae_hazor_tiedustelu(data_kansio, ed):
                                                                                     "polku": "data/hazor/tiedustelu.json"}
 
 
+# ---------------------------------------------------------------- jäähavainnot (kausikäyrä)
+# Hannu 28.11.2026: "tutkitaan se fmi jäänpaksuus. Kaudet vaihtelee." -> "Ok" (rakennetaan kausikäyrä).
+# [T 28.11.2026] FMI fmi::observations::seaice::manual::timevaluepair: ICE (jään paksuus cm) ja SNDICE (lumi jäällä cm),
+#   asemat mm. Mustasaari Vallgrund 106956, Vaasa Rönnbuskören 100671, Kaskinen Sundet 100660, Kaskinen 671968;
+#   avoin data talvesta 2016/17 (2013/14 tyhjä). Asemahaku bboxilla, kausi kerrallaan.
+# [T] SYKE Hydrologiarajapinta Jaanpaksuus: Lappajärvi, Halkosaari (Paikka 493) vuodesta 1961. Liput: 41 kokonaispaksuus,
+#   113 teräsjää, 112 kohva, 37 lumi, 43 heikko jää (liian heikkoa mitattavaksi).
+JAAHAV_BBOX = "20.8,62.2,22.0,63.5"          # lon,lat,lon,lat: Kaskinen–Mikkelinsaaret
+JAAHAV_FMI_ENSIMMAINEN = 2011                 # kevään vuosi; tyhjät kaudet maksavat yhden kyselyn
+JAAHAV_SYKE = [{"paikka": 493, "nimi": "Lappajärvi, Halkosaari", "alue": "lappajarvi", "lat": 63.15651, "lon": 23.6699}]
+JAAHAV_UUSINTA_VRK = 30
+SYKE_JAA_LIPUT = {41: 0, 113: 1, 112: 2, 37: 3}   # -> sarake rivissä [d, jaa, teras, kohva, lumi]
+
+
+def kausi_vuosi(t):
+    """Talvikausi nimetään kevään vuodella: 1.10.–30.9."""
+    return t.year + 1 if t.month >= 10 else t.year
+
+
+def kausi_alku(v):
+    return dt.datetime(v - 1, 10, 1, tzinfo=dt.timezone.utc)
+
+
+def jasenna_tvp(xml_tavut):
+    """FMI timevaluepair -> [{fmisid, nimi, lat, lon, param, pisteet: [(aika, arvo|None)]}]."""
+    juuri = ET.fromstring(xml_tavut)
+    if juuri.tag.endswith("ExceptionReport"):
+        raise RuntimeError(poimi_fmi_virhe(xml_tavut.decode("utf-8", "replace")))
+    GML_ID = "{http://www.opengis.net/gml/3.2}id"
+    out = []
+    for jasen in juuri:
+        if not jasen.tag.endswith("member"):
+            continue
+        fmisid = nimi = lat = lon = None
+        for el in jasen.iter():
+            t = el.tag.rsplit("}", 1)[-1]
+            cs = el.get("codeSpace", "")
+            if t == "identifier" and "fmisid" in cs and el.text:
+                fmisid = int(el.text.strip())
+            elif t == "name" and cs.endswith("/name") and el.text and not nimi:
+                nimi = el.text.strip()
+            elif t == "Location" and fmisid is None:
+                m = re.search(r"fmisid-(\d+)", el.get(GML_ID, ""))
+                if m:
+                    fmisid = int(m.group(1))
+            elif t == "pos" and el.text and lat is None:
+                osat = el.text.split()
+                lat, lon = round(float(osat[0]), 5), round(float(osat[1]), 5)
+        for sarja in jasen.iter():
+            if not sarja.tag.endswith("MeasurementTimeseries"):
+                continue
+            param = sarja.get(GML_ID, "").rsplit("-", 1)[-1].split("_")[0]
+            pisteet = []
+            for tvp in sarja.iter():
+                if not tvp.tag.endswith("MeasurementTVP"):
+                    continue
+                aika = next((c.text for c in tvp if c.tag.endswith("time")), None)
+                arvo = next((c.text for c in tvp if c.tag.endswith("value")), None)
+                try:
+                    v = float(arvo)
+                    v = v if math.isfinite(v) else None
+                except (TypeError, ValueError):
+                    v = None
+                if aika:
+                    pisteet.append((aika.strip(), v))
+            out.append({"fmisid": fmisid, "nimi": nimi, "lat": lat, "lon": lon, "param": param, "pisteet": pisteet})
+    return out
+
+
+def hae_fmi_jaa_kausi(v, nyt):
+    alku, loppu = kausi_alku(v), min(dt.datetime(v, 6, 1, tzinfo=dt.timezone.utc), nyt)
+    p = {"service": "WFS", "version": "2.0.0", "request": "getFeature",
+         "storedquery_id": "fmi::observations::seaice::manual::timevaluepair",
+         "bbox": JAAHAV_BBOX, "starttime": iso(alku), "endtime": iso(loppu)}
+    sarjat = jasenna_tvp(http_get(FMI_WFS + "?" + urllib.parse.urlencode(p, safe=",:")))
+    asemat = {}
+    for s in sarjat:
+        if s["fmisid"] is None or s["param"] not in ("ICE", "SNDICE"):
+            continue
+        a = asemat.setdefault(s["fmisid"], {"nimi": s["nimi"], "lat": s["lat"], "lon": s["lon"], "paivat": {}})
+        sar = 0 if s["param"] == "ICE" else 1
+        for aika, arvo in s["pisteet"]:
+            d = (lue_aika(aika) - alku).days
+            a["paivat"].setdefault(d, [None, None])[sar] = None if arvo is None else round(arvo)
+    return {k: dict(a, rivit=[[d] + a["paivat"][d] for d in sorted(a["paivat"]) if any(x is not None for x in a["paivat"][d])])
+            for k, a in asemat.items()}
+
+
+def syke_koord(x):
+    """SYKE Paikka KoordLat/KoordLong muodossa AAMMSS (esim. 624000 = 62°40'00") [O, tarkistettu Iisveden asemasta]."""
+    try:
+        x = int(x)
+        return round(x // 10000 + (x // 100 % 100) / 60 + (x % 100) / 3600, 5)
+    except (TypeError, ValueError):
+        return None
+
+
+def syke_jaa_kaudet(rivit):
+    """[{Aika, Arvo, Lippu_Id}] -> {kausi: [[d, jaa, teras, kohva, lumi], ...]}; pelkkä 'heikko jää' (43) -> jaa 0."""
+    paivat = {}
+    for r in rivit:
+        t = lue_aika(str(r.get("Aika"))[:19] + "Z")
+        v, lippu = kausi_vuosi(t), r.get("Lippu_Id")
+        d = (t - kausi_alku(v)).days
+        rivi = paivat.setdefault((v, d), [None] * 4)
+        if lippu in SYKE_JAA_LIPUT and r.get("Arvo") is not None:
+            rivi[SYKE_JAA_LIPUT[lippu]] = int(r["Arvo"])
+        elif lippu == 43 and rivi[0] is None:
+            rivi[0] = 0
+    kaudet = {}
+    for (v, d), rivi in sorted(paivat.items()):
+        if any(x is not None for x in rivi):
+            kaudet.setdefault(str(v), []).append([d] + rivi)
+    return kaudet
+
+
+def hae_jaahavainnot(nyt, vanha):
+    vanha = vanha or {}
+    nyky = kausi_vuosi(nyt)
+    tuore = False
+    if vanha.get("historia_haettu"):
+        tuore = (nyt - lue_aika(vanha["historia_haettu"])).days < JAAHAV_UUSINTA_VRK
+    asemat = {a["id"]: a for a in (vanha.get("asemat") or []) if a.get("id")}
+    # meri: FMI kausi kerrallaan (historia 30 vrk välein, nykykausi joka ajo)
+    for v in ([nyky] if tuore else range(JAAHAV_FMI_ENSIMMAINEN, nyky + 1)):
+        try:
+            tulos = hae_fmi_jaa_kausi(v, nyt)
+        except RuntimeError as e:
+            print(f"  FMI kausi {v}: {e}")
+            if v == nyky and not tuore:
+                raise
+            continue
+        print(f"  FMI kausi {v}: " + (", ".join(f"{a['nimi']} ({k}) {len(a['rivit'])} hav." for k, a in tulos.items()) or "ei havaintoja"))
+        for k, a in tulos.items():
+            ast = asemat.setdefault(f"fmi-{k}", {"id": f"fmi-{k}", "lahde": "fmi", "fmisid": k, "nimi": a["nimi"], "lat": a["lat"],
+                                                  "lon": a["lon"], "alue": "meri", "kentat": ["d", "jaa", "lumi"], "kaudet": {}})
+            ast.update(nimi=a["nimi"] or ast.get("nimi"), lat=a["lat"] or ast.get("lat"), lon=a["lon"] or ast.get("lon"))
+            if a["rivit"]:
+                ast["kaudet"][str(v)] = a["rivit"]
+        time.sleep(0.5)
+    # järvet: SYKE koko historia 30 vrk välein, muuten vain nykykausi
+    for j in JAAHAV_SYKE:
+        aid = f"syke-{j['paikka']}"
+        suodin = f"Paikka_Id eq {j['paikka']}"
+        if tuore and aid in asemat:
+            suodin += f" and Aika ge datetime'{kausi_alku(nyky).strftime('%Y-%m-%dT%H:%M:%S')}'"
+        rivit = syke_sivut("Jaanpaksuus", {"$filter": suodin, "$orderby": "Aika", "$top": 1000})
+        kaudet = syke_jaa_kaudet(rivit)
+        ast = asemat.get(aid) or {"id": aid, "lahde": "syke", "paikka": j["paikka"], "nimi": j["nimi"], "lat": j["lat"], "lon": j["lon"],
+                                  "alue": j["alue"], "kentat": ["d", "jaa", "teras", "kohva", "lumi"], "kaudet": {}}
+        if not (tuore and aid in asemat):
+            ast["kaudet"] = {}
+            try:
+                pk = syke_json("Paikka", {"$filter": f"Paikka_Id eq {j['paikka']}"}).get("value", [])
+                if pk:
+                    la, lo = syke_koord(pk[0].get("KoordLat")), syke_koord(pk[0].get("KoordLong"))
+                    if la and 59 < la < 71 and lo and 19 < lo < 32:
+                        ast.update(lat=la, lon=lo)
+                    ast["nimi"] = pk[0].get("Nimi") or ast["nimi"]
+            except Exception as e:
+                print(f"  SYKE {j['paikka']}: paikan tiedot puuttuvat ({e})")
+        ast["kaudet"].update(kaudet)
+        asemat[aid] = ast
+        print(f"  SYKE {ast['nimi']}: {len(rivit)} riviä, kausia {len(ast['kaudet'])} "
+              f"({min(ast['kaudet'], default='-')}–{max(ast['kaudet'], default='-')})")
+    if not asemat:
+        raise RuntimeError("ei jäähavaintoja")
+    return {"haettu": iso(nyt), "historia_haettu": vanha.get("historia_haettu") if tuore else iso(nyt),
+            "kausi_alku": "10-01", "asemat": sorted(asemat.values(), key=lambda a: (a["lahde"], a["id"]))}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Pilkkitutka – hakuajo")
     ap.add_argument("ulos")
@@ -1062,6 +1233,7 @@ def main(argv=None):
     # epäonnistuessa työnkulku on jo kopioinut edellisen vesi.json:n paikalleen -> viittaus edelliseen
     data["vesi"] = vaihe("vesi", lambda: hae_vesi(nyt, os.path.dirname(os.path.abspath(args.ulos))), ed.get("vesi"))
     data["jarvet"] = vaihe("jarvet", lambda: hae_jarvet(nyt, ed.get("jarvet")), ed.get("jarvet"))
+    data["jaahavainnot"] = vaihe("jaahavainnot", lambda: hae_jaahavainnot(nyt, ed.get("jaahavainnot")), ed.get("jaahavainnot"))
     data["hazor"] = vaihe("hazor", lambda: hae_hazor_tiedustelu(os.path.dirname(os.path.abspath(args.ulos)), ed.get("hazor")), ed.get("hazor"))
     if args.tilasto:
         data["vk_tilasto"] = vaihe("vk_tilasto", lambda: laske_tilasto(nyt), ed.get("vk_tilasto"))

@@ -203,6 +203,7 @@
     <div class="kortti" id="k-vedenkorkeus"></div>
     <div class="kortti" id="k-jaa"></div>
     <div class="kortti" id="k-kasvu"></div>
+    <div class="kortti" id="k-kausi"></div>
     <div class="kortti" id="k-saa"></div>
     <div class="kortti" id="k-tilasto"></div>
     <div class="kortti pieni" id="k-lahteet"></div>
@@ -269,7 +270,7 @@
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v017';
+const VERSIO = 'v018';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -919,6 +920,127 @@ function korttiTilasto(c) {
   $('k-tilasto').innerHTML = h;
 }
 
+// ---- kausikäyrä (v018). Hannu 28.11.2026: "tutkitaan se fmi jäänpaksuus. Kaudet vaihtelee." -> "Ok".
+// Asemien mitattu kokonaispaksuus talvittain: FMI:n käsihavainnot merellä (avoin data 2016/17 alkaen), SYKE Lappajärvi 1961 alkaen.
+const KAUSI_D0 = 31, KAUSI_D1 = 243, KAUSI_VYO_MIN = 15;                     // 1.11.–31.5. (päivää 1.10. alkaen)
+const KAUSI_KK = [['marras', 31], ['joulu', 61], ['tammi', 92], ['helmi', 123], ['maalis', 151], ['huhti', 182], ['touko', 212]];
+const kausiAlkuMs = v => Date.UTC(v - 1, 9, 1);
+const kausiNyt = (t = Date.now()) => { const d = new Date(t); return d.getUTCMonth() >= 9 ? d.getUTCFullYear() + 1 : d.getUTCFullYear(); };
+const kausiPvm = (v, d) => aikaFi(kausiAlkuMs(v) + d * 864e5 + 12 * 3600e3, { day: 'numeric', month: 'numeric' });
+const kausiNimi = v => `${v - 1}–${String(v).slice(2)}`;
+function kausiAsemat() { return (DATA && DATA.jaahavainnot && Array.isArray(DATA.jaahavainnot.asemat)) ? DATA.jaahavainnot.asemat : []; }
+/** Talven sarja [[d, cm]] kokonaispaksuudesta (sarake 1). */
+const kausiSarja = rivit => (rivit || []).filter(x => x[1] != null).map(x => [x[0], x[1]]);
+/** Arvo päivänä d lineaarisesti, jos lähin havainto enintään raja päivän päässä molemmin puolin. */
+function kausiArvo(sarja, d, raja = 21) {
+  for (let i = 0; i < sarja.length; i++) {
+    if (sarja[i][0] === d) return sarja[i][1];
+    if (sarja[i][0] > d) {
+      if (!i) return null;
+      const [d0, v0] = sarja[i - 1], [d1, v1] = sarja[i];
+      return (d - d0 <= raja && d1 - d <= raja) ? v0 + (v1 - v0) * (d - d0) / (d1 - d0) : null;
+    }
+  }
+  return null;
+}
+function kausiTilasto(A) {
+  const rivit = Object.entries(A.kaudet || {}).map(([v, r]) => {
+    const s = kausiSarja(r), max = s.reduce((m, x) => x[1] > m[1] ? x : m, [null, -1]);
+    const yli10 = s.find(x => x[1] >= 10);
+    return { v: +v, n: s.length, max: max[1] >= 0 ? max : null, yli10: yli10 ? yli10[0] : null, viim: s.length ? s[s.length - 1] : null, s };
+  }).filter(x => x.n).sort((a, b) => b.v - a.v);
+  return rivit;
+}
+function kausiKaavio(A, T, nykyV, vaatimus, omat) {
+  const W = 360, H = 210, vas = 34, oik = 8, yla = 10, ala = 22;
+  const ymax = Math.max(20, ...T.map(t => t.max ? t.max[1] : 0), ...(omat || []).map(o => o[1]), vaatimus ? vaatimus.y + 4 : 0);
+  const y1 = Math.ceil(ymax / 10) * 10;
+  const X = d => vas + (d - KAUSI_D0) / (KAUSI_D1 - KAUSI_D0) * (W - vas - oik), Y = v => yla + (1 - v / y1) * (H - yla - ala);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Jään paksuus talvittain">`;
+  const askel = y1 > 60 ? 20 : 10;
+  for (let v = 0; v <= y1; v += askel) s += `<line class="ruudukko" x1="${vas}" x2="${W - oik}" y1="${Y(v)}" y2="${Y(v)}"/><text class="akseli" x="${vas - 4}" y="${Y(v) + 4}" font-size="11" text-anchor="end">${v}</text>`;
+  for (const [n, d] of KAUSI_KK) s += `<line class="ruudukko" x1="${X(d)}" x2="${X(d)}" y1="${yla}" y2="${H - ala}"/><text class="akseli" x="${X(d) + 2}" y="${H - 7}" font-size="10">${n}</text>`;
+  // vaihteluväli 10–90 % ja mediaani vasta, kun talvia on vähintään 15 (harvemmilla prosenttipisteet ovat käytännössä min ja max)
+  const vanhat = T.filter(t => t.v !== nykyV);
+  if (vanhat.length >= KAUSI_VYO_MIN) {
+    const ala10 = [], yla90 = [], med = [];
+    for (let d = KAUSI_D0; d <= KAUSI_D1; d += 5) {
+      const a = vanhat.map(t => kausiArvo(t.s, d)).filter(x => x != null).sort((p, q) => p - q);
+      if (a.length < Math.max(5, vanhat.length * 0.4)) continue;
+      const q = f => a[Math.min(a.length - 1, Math.floor(f * (a.length - 1) + 0.5))];
+      ala10.push([d, q(0.1)]); yla90.push([d, q(0.9)]); med.push([d, q(0.5)]);
+    }
+    if (med.length > 2) {
+      s += `<path d="${yla90.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')} ${ala10.slice().reverse().map(p => 'L' + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')} Z" style="fill:var(--jaa)" fill-opacity="0.13" stroke="none"/>`;
+      s += `<path d="${med.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')}" fill="none" style="stroke:var(--hiljainen)" stroke-width="1.6" stroke-dasharray="5 3"/>`;
+    }
+  }
+  const viiva = (sar, tyyli) => sar.length > 1 ? `<path d="${sar.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')}" fill="none" ${tyyli}/>` : '';
+  const ohut = vanhat.length > 20 ? 0.18 : 0.45;
+  for (const t of vanhat.slice(1)) s += viiva(t.s.filter(p => p[0] >= KAUSI_D0 - 10 && p[0] <= KAUSI_D1 + 10), `style="stroke:var(--hiljainen)" stroke-opacity="${ohut}" stroke-width="1.2"`);
+  if (vanhat[0]) s += viiva(vanhat[0].s, `style="stroke:var(--otsikko)" stroke-width="1.8"`);
+  if (vaatimus) {
+    s += `<line x1="${vas}" x2="${W - oik}" y1="${Y(vaatimus.y)}" y2="${Y(vaatimus.y)}" style="stroke:#ff8a65" stroke-width="1.4" stroke-dasharray="6 4"/>`;
+    s += `<text x="${W - oik - 2}" y="${Y(vaatimus.y) - 3}" font-size="10" text-anchor="end" style="fill:#ff8a65">${esc(vaatimus.teksti)}</text>`;
+  }
+  const nyky = T.find(t => t.v === nykyV), dNyt = Math.floor((Date.now() - kausiAlkuMs(nykyV)) / 864e5);
+  if (dNyt >= KAUSI_D0 && dNyt <= KAUSI_D1) s += `<line class="nytviiva" x1="${X(dNyt)}" x2="${X(dNyt)}" y1="${yla}" y2="${H - ala}" stroke-dasharray="2 3"/>`;
+  if (nyky) {
+    s += viiva(nyky.s, `style="stroke:var(--jaa)" stroke-width="3"`);
+    for (const p of nyky.s) s += `<circle cx="${X(Math.max(KAUSI_D0, p[0])).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3.2" style="fill:var(--jaa)"/>`;
+  }
+  for (const o of omat || []) if (o[0] >= KAUSI_D0 && o[0] <= KAUSI_D1) s += `<circle cx="${X(o[0]).toFixed(1)}" cy="${Y(o[1]).toFixed(1)}" r="3.6" style="fill:#ff8a65;stroke:#000;stroke-width:0.6"/>`;
+  return s + '</svg>';
+}
+function korttiKausi() {
+  const el = $('k-kausi'); if (!el) return;
+  const PRr = window.PilkkiRetki, jarvi = onJarvi();
+  let h = `<h2>Jääkausi talvittain ${tasoMerkki('mitattu')}</h2>`;
+  const ehd = kausiAsemat().filter(a => jarvi ? a.alue === 'lappajarvi' : a.alue === 'meri').filter(a => Object.keys(a.kaudet || {}).length);
+  if (!ehd.length) { el.innerHTML = h + '<p class="hiljainen">Jäähavaintoja ei vielä ole – hakuajo tuo ne (Ilmatieteen laitos, SYKE).</p>'; return; }
+  const p = SIJ || alue().kartta || alue(), nykyV = kausiNyt();
+  const km = a => (p && p.lat != null && a.lat != null) ? PK.etaisyysM(p.lat, p.lon, a.lat, a.lon) / 1000 : null;
+  const tuore = a => Object.keys(a.kaudet).some(v => +v >= nykyV - 1);
+  ASET.kausiAsema = ASET.kausiAsema || {};
+  let A = ehd.find(a => a.id === ASET.kausiAsema[ASET.alue]);
+  if (!A) A = ehd.slice().sort((a, b) => (tuore(b) - tuore(a)) || ((km(a) ?? 1e9) - (km(b) ?? 1e9)))[0];
+  if (ehd.length > 1) h += `<div class="valitsin">${ehd.map(a => `<button data-kausi-asema="${esc(a.id)}" class="${a === A ? 'valittu' : ''}">${esc(a.nimi.replace(/^(Mustasaari|Vaasa) /, ''))}${km(a) != null ? ` ${fi(km(a))} km` : ''}</button>`).join('')}</div>`;
+  const T = kausiTilasto(A);
+  // omat mittaukset tältä talvelta enintään 25 km asemasta
+  const omat = MITTAUKSET.filter(m => m && isFinite(m.jaa_cm) && m.lat != null && kausiNyt(m.t) === nykyV && PK.etaisyysM(m.lat, m.lon, A.lat, A.lon) <= 25000)
+    .map(m => [Math.floor((m.t - kausiAlkuMs(nykyV)) / 864e5), m.jaa_cm]);
+  // käytössä olevien välineiden vaatimus (tehollinen jää)
+  let vaatimus = null;
+  if (PRr) {
+    const R = ASET.retki || {}, idt = R.kaytossa || PRr.OLETUS_KAYTOSSA;
+    const v = PRr.VALINEET.filter(x => idt.includes(x.id)).map(x => ({ n: x.nimi.split(' ')[0].replace(/\+$/, ''), cm: PRr.vaadittuJaa((R.massat && R.massat[x.id]) || x.massa) })).filter(x => x.cm);
+    if (v.length) {
+      const a = Math.min(...v.map(x => x.cm)), b = Math.max(...v.map(x => x.cm));
+      vaatimus = { y: b, teksti: `välineesi: ${fi(a, 1)}${b - a >= 0.05 ? '–' + fi(b, 1) : ''} cm tehollista (IL)` };
+    }
+  }
+  h += kausiKaavio(A, T, nykyV, vaatimus, omat);
+  const vanhat = T.filter(t => t.v !== nykyV);
+  h += `<div class="selite"><span style="--c:var(--jaa)">${kausiNimi(nykyV)}</span>${vanhat[0] ? `<span style="--c:var(--otsikko)">${kausiNimi(vanhat[0].v)}</span>` : ''}<span style="--c:var(--hiljainen)">muut talvet${vanhat.length >= KAUSI_VYO_MIN ? ', mediaani ja 10–90 %' : ''}</span>${omat.length ? '<span style="--c:#ff8a65">omat mittaukset</span>' : ''}</div>`;
+  if (vanhat.length >= 2) {
+    const mx = vanhat.filter(t => t.max).map(t => t.max[1]), y10 = vanhat.filter(t => t.yli10 != null);
+    const aik = y10.length ? y10.reduce((a, b) => a.yli10 <= b.yli10 ? a : b) : null, myoh = y10.length ? y10.reduce((a, b) => a.yli10 >= b.yli10 ? a : b) : null;
+    h += `<p class="pieni">${vanhat.length} talvea (${kausiNimi(vanhat[vanhat.length - 1].v)} … ${kausiNimi(vanhat[0].v)}): suurin paksuus ${fi(Math.min(...mx))}–${fi(Math.max(...mx))} cm. ` +
+      (aik ? `10 cm ylittyi aikaisintaan ${kausiPvm(aik.v, aik.yli10)} (${kausiNimi(aik.v)}), myöhäisimmin ${kausiPvm(myoh.v, myoh.yli10)} (${kausiNimi(myoh.v)}). ` : '') +
+      `${tasoMerkki('laskettu')}</p>`;
+  }
+  const nyky = T.find(t => t.v === nykyV);
+  h += `<p class="pieni">${nyky ? `Tämä talvi: viimeisin ${fi(nyky.viim[1])} cm ${kausiPvm(nykyV, nyky.viim[0])}` : 'Tältä talvelta ei vielä havaintoja asemalta.'}</p>`;
+  h += `<details><summary>Talvet taulukkona</summary><table><tr><th>Talvi</th><th>≥ 10 cm</th><th>Suurin</th><th>Viimeinen</th></tr>` +
+    T.map(t => `<tr><td>${kausiNimi(t.v)}</td><td>${t.yli10 != null ? kausiPvm(t.v, t.yli10) : '–'}</td><td>${t.max ? `${fi(t.max[1])} cm ${kausiPvm(t.v, t.max[0])}` : '–'}</td><td>${t.viim ? kausiPvm(t.v, t.viim[0]) : '–'}</td></tr>`).join('') + '</table></details>';
+  const lahde = A.lahde === 'syke' ? `SYKE, ${esc(A.nimi)} (Hydrologiarajapinta)` : `Ilmatieteen laitos, ${esc(A.nimi)} (avoin data, käsihavainnot; talvesta 2016–17)`;
+  h += `<p class="pieni hiljainen">${lahde}. Asemalla mitattu jään kokonaispaksuus suojaisessa paikassa – ei kerro jäästä reitilläsi eikä sitä, kantaako jää. ` +
+    `Vaatimusviiva on tehollinen jää (teräsjää + ½ tumma kohva) Ilmatieteen laitoksen ohjeesta.` +
+    (jarvi && ASET.alue !== 'lappajarvi' ? ` ${esc(({ varpula: 'Varpulalle', hirvijarvi: 'Hirvijärvelle' })[ASET.alue] || alue().nimi + 'lle')} ei ole omaa jäähavaintoasemaa: lähin on ${esc(A.nimi)}${km(A) != null ? `, ${fi(km(A))} km` : ''}.` : '') + '</p>';
+  el.innerHTML = h;
+  el.querySelectorAll('[data-kausi-asema]').forEach(b => b.onclick = () => { ASET.kausiAsema[ASET.alue] = b.dataset.kausiAsema; kirjoitaLS('pilkki_asetukset', ASET); korttiKausi(); });
+}
+
 function korttiLahteet(c) {
   let h = `<b>Lähteet</b> · versio ${VERSIO}`;
   if (!DATA) { $('k-lahteet').innerHTML = h + '<p>Ei dataa.</p>'; return; }
@@ -926,7 +1048,7 @@ function korttiLahteet(c) {
   const nimet = { mareografit: 'Mareografit (FMI)', vk_ennuste: 'Vedenkorkeusennuste (FMI)', saa: 'Sääennuste HARMONIE (FMI)',
     lampohistoria: 'Lämpöhavainnot (FMI)', jaa_malli: 'Jäämalli (Copernicus BAL)', jaakartta: 'Jääkartta (Copernicus/FMI)', vk_tilasto: 'Vedenkorkeustilasto',
     syvyys: 'Syvyyskäyrät (Traficom)', vesi: 'Virtaus ja veden lämpö (Copernicus BAL)', vaylat: 'Väylät ja turvalaitteet (Väylävirasto)',
-    jarvet: 'Järvien vedenkorkeus (SYKE)', hazor: 'Vaaralliset jääalueet (T. Lahtonen) – muototarkistus' };
+    jarvet: 'Järvien vedenkorkeus (SYKE)', jaahavainnot: 'Jäänpaksuushavainnot (FMI, SYKE)', hazor: 'Vaaralliset jääalueet (T. Lahtonen) – muototarkistus' };
   for (const [k, t] of Object.entries(DATA.tila || {})) {
     const tila = t.ok ? (t.kantaa_edellisesta ? 'edellisestä' : 'ok') : (t.kantaa_edellisesta ? 'ei laskettu' : 'virhe');
     h += `<tr><td>${esc(nimet[k] || k)}</td><td>${esc(tila)}</td></tr>`;
@@ -3007,8 +3129,8 @@ function piirra() {
   const attr = $('karttaattr'); if (attr) attr.textContent = jarvi
     ? '© OpenStreetMap-tekijät · syvyys ' + (alue().syvyys === 'lappajarvi' ? '© Maanmittauslaitos' : alue().syvyys ? 'oma C-MAP-luotaus' : '–') + ' · vedenkorkeus SYKE · heikot jäät T. Lahtonen (hazor.iki.fi) · ei navigointiin'
     : '© OpenStreetMap-tekijät · syvyys Traficom · väylät Väylävirasto · jää, virta Copernicus · heikot jäät T. Lahtonen (hazor.iki.fi) · ei navigointiin';
-  const kortit = jarvi ? [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiKasvu, korttiSaa, korttiLahteet]
-    : [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiJaa, korttiKasvu, korttiSaa, korttiTilasto, korttiLahteet];
+  const kortit = jarvi ? [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiKasvu, korttiKausi, korttiSaa, korttiLahteet]
+    : [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiJaa, korttiKasvu, korttiKausi, korttiSaa, korttiTilasto, korttiLahteet];
   for (const k of kortit) {
     try { k(c); } catch (e) { console.error(k.name, e); }
   }
