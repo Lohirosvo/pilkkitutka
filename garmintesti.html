@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a2150">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+<title>Pilkkitutka – Garmin-testi</title>
+<!--
+  Pilkkitutka – Garmin-testi v001 (28.11.2026)
+  Tarkoitus: (1) toimiiko intervals.icu-haku suoraan puhelimen selaimesta (vaihtoehto A),
+  (2) mitä kenttiä Epix Gen 2 -data oikeasti sisältää, jotta rasitussysteemi voidaan karsia sen mukaan.
+  Avain: lähetetään vain intervals.icuun. Ei koodissa, ei GitHubissa. Tallentuu vain, jos "Muista" on valittu,
+  ja silloin vain tämän laitteen selaimen localStorageen (avain 'pilkki_intervals_avain').
+  Sivu ei kirjoita mitään konsoliin eikä lähetä dataa minnekään muualle.
+-->
+<style>
+  :root {
+    --kortti: rgba(9, 36, 88, 0.92); --reuna: #2c78c8; --teksti: #eef7ff; --hiljainen: #a9c7e4;
+    --otsikko: #ffc928; --tutka: #7dff5a; --punainen: #ff6b6b; --syote: #071a3f; --raja: #24538f; --info: #6fd3ff;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; color: var(--teksti); font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { background: radial-gradient(ellipse at 50% -10%, #1f6fc9 0%, #0d3a7a 38%, #0a2150 70%, #061634 100%);
+    background-attachment: fixed; min-height: 100vh; padding: 12px; padding-top: calc(12px + env(safe-area-inset-top)); }
+  h1 { margin: 0 0 2px; font: 900 22px/1.1 system-ui, sans-serif; color: var(--otsikko); text-transform: uppercase; letter-spacing: .04em; }
+  h2 { margin: 0 0 8px; font-size: 18px; color: var(--otsikko); }
+  .kortti { background: var(--kortti); border: 1px solid var(--reuna); border-radius: 12px; padding: 12px; margin: 12px 0;
+    box-shadow: 0 0 14px rgba(79, 195, 247, .22); }
+  .pieni { font-size: 14px; color: var(--hiljainen); }
+  label { display: block; margin: 10px 0 4px; }
+  input[type=password], select, textarea { width: 100%; padding: 10px; font-size: 17px; color: var(--teksti);
+    background: var(--syote); border: 1px solid var(--raja); border-radius: 8px; }
+  textarea { font-size: 13px; min-height: 140px; }
+  button { font: 700 17px system-ui, sans-serif; padding: 12px 14px; border-radius: 10px; border: 0; margin: 10px 8px 0 0;
+    background: linear-gradient(180deg, #ffe082, #ffb300); color: #0a1f4d; }
+  button:disabled { opacity: .5; }
+  button.toissijainen { background: rgba(127, 220, 255, .12); color: var(--teksti); border: 1px solid var(--raja); }
+  .ok { color: var(--tutka); }
+  .virhe { color: var(--punainen); }
+  .rullaa { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--raja); vertical-align: top; }
+  th { color: var(--hiljainen); font-weight: 600; }
+  td.luku { text-align: right; white-space: nowrap; }
+  details summary { cursor: pointer; color: var(--info); margin: 8px 0; }
+  p { margin: 6px 0; }
+</style>
+</head>
+<body>
+<h1>Garmin-testi</h1>
+<div class="pieni">Pilkkitutka · intervals.icu-yhteys ja datan kartoitus</div>
+
+<div class="kortti">
+  <h2>1. Avain</h2>
+  <div class="pieni">Avain lähtee vain intervals.icuun. Se ei ole sivun koodissa eikä GitHubissa.
+    Jos valitset muistamisen, se jää vain tämän puhelimen selaimeen.</div>
+  <label for="avain">intervals.icu API-avain</label>
+  <input id="avain" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <label><input id="muista" type="checkbox"> Muista avain tällä laitteella</label>
+  <label for="paivat">Ajanjakso</label>
+  <select id="paivat">
+    <option value="7">7 päivää</option>
+    <option value="30" selected>30 päivää</option>
+    <option value="90">90 päivää</option>
+    <option value="365">365 päivää</option>
+  </select>
+  <button id="hae">Hae data</button>
+  <button id="unohda" class="toissijainen">Unohda avain</button>
+</div>
+
+<div class="kortti">
+  <h2>2. Yhteys</h2>
+  <div id="tila" class="pieni">Ei haettu.</div>
+</div>
+
+<div class="kortti" id="hvKortti" hidden>
+  <h2>3. Hyvinvointi (päivittäin)</h2>
+  <div id="hv"></div>
+</div>
+
+<div class="kortti" id="aktKortti" hidden>
+  <h2>4. Aktiviteetit</h2>
+  <div id="akt"></div>
+  <p class="pieni">Huom: Stravan kautta tulleiden aktiviteettien tietoja intervals.icu ei luovuta API:n kautta.
+    Garminista suoraan tulleet näkyvät normaalisti.</p>
+</div>
+
+<div class="kortti" id="kopioKortti" hidden>
+  <h2>5. Yhteenveto Claudelle</h2>
+  <div class="pieni">Sisältää vain kenttien nimet ja kuinka monena päivänä / monessako aktiviteetissa niissä on arvo.
+    Ei mittausarvoja.</div>
+  <button id="kopioi">Kopioi yhteenveto</button>
+  <span id="kopioTila" class="pieni"></span>
+  <textarea id="kopioTeksti" readonly hidden></textarea>
+</div>
+
+<script>
+'use strict';
+const API = 'https://intervals.icu/api/v1/athlete/0';
+const LS_AVAIN = 'pilkki_intervals_avain';
+const $ = id => document.getElementById(id);
+let yhteenveto = '';
+
+// ---------- apufunktiot ----------
+function paivays(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function jakso(paivia) {
+  const nyt = new Date();
+  const alku = new Date(nyt);
+  alku.setDate(alku.getDate() - (paivia - 1));
+  return { oldest: paivays(alku), newest: paivays(nyt) };
+}
+// 2026-11-27… → 27.11. (näyttöön; yhteenvetoon ei päivämääriä)
+function pv(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  return m ? Number(m[3]) + '.' + Number(m[2]) + '.' : '–';
+}
+function onArvo(v) {
+  if (v === null || v === undefined || v === '') return false;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'object') return Object.keys(v).length > 0;
+  return true;
+}
+function kesto(sek) {
+  const min = Math.round(sek / 60);
+  return Math.floor(min / 60) + ' h ' + String(min % 60).padStart(2, '0') + ' min';
+}
+function muotoile(kentta, v) {
+  if (!onArvo(v)) return '–';
+  if (Array.isArray(v)) return '[' + v.length + ' kpl]';
+  if (typeof v === 'object') return '{…}';
+  if (typeof v === 'boolean') return v ? 'kyllä' : 'ei';
+  if (typeof v === 'number') {
+    if (/secs$/i.test(kentta) || kentta === 'moving_time' || kentta === 'elapsed_time') return kesto(v);
+    return Number.isInteger(v) ? String(v) : String(Math.round(v * 10) / 10).replace('.', ',');
+  }
+  const s = String(v);
+  return s.length > 40 ? s.slice(0, 40) + '…' : s;
+}
+
+// Kenttäkartoitus: jokaiselle kentälle montako riviä sisältää arvon, viimeisin arvo ja sen päivä.
+function kartoita(rivit, paivaKentta, ohita) {
+  const kentat = new Map();
+  for (const r of rivit) {
+    const pvm = String(r[paivaKentta] || '');
+    for (const [k, v] of Object.entries(r)) {
+      if (ohita.includes(k)) continue;
+      if (!kentat.has(k)) kentat.set(k, { kentta: k, maara: 0, viimeisin: undefined, pvm: '' });
+      const t = kentat.get(k);
+      if (onArvo(v)) {
+        t.maara++;
+        if (pvm >= t.pvm) { t.pvm = pvm; t.viimeisin = v; }
+      }
+    }
+  }
+  return [...kentat.values()].sort((a, b) => b.maara - a.maara || a.kentta.localeCompare(b.kentta));
+}
+
+// Taulukko textContentilla (API:n tekstit, esim. aktiviteetin nimi, eivät päädy HTML:ksi).
+function taulukko(otsikot, rivit, lukusarakkeet) {
+  const kehys = document.createElement('div');
+  kehys.className = 'rullaa';
+  const t = document.createElement('table');
+  const otsRivi = t.createTHead().insertRow();
+  for (const o of otsikot) { const th = document.createElement('th'); th.textContent = o; otsRivi.appendChild(th); }
+  const runko = t.createTBody();
+  for (const r of rivit) {
+    const tr = runko.insertRow();
+    r.forEach((solu, i) => {
+      const td = tr.insertCell();
+      td.textContent = solu;
+      if (lukusarakkeet && lukusarakkeet.includes(i)) td.className = 'luku';
+    });
+  }
+  kehys.appendChild(t);
+  return kehys;
+}
+function teksti(sisalto, luokka) {
+  const p = document.createElement('p');
+  p.textContent = sisalto;
+  if (luokka) p.className = luokka;
+  return p;
+}
+function naytaTila(sisalto, luokka) {
+  const el = $('tila');
+  el.textContent = sisalto;
+  el.className = luokka || 'pieni';
+}
+
+// ---------- haku ----------
+async function haeJson(polku, avain) {
+  let vastaus;
+  try {
+    vastaus = await fetch(API + polku, {
+      headers: { 'Authorization': 'Basic ' + btoa('API_KEY:' + avain), 'Accept': 'application/json' }
+    });
+  } catch (e) {
+    const v = new Error('verkko'); v.tyyppi = 'verkko'; throw v;
+  }
+  if (!vastaus.ok) { const v = new Error('http'); v.tyyppi = 'http'; v.status = vastaus.status; throw v; }
+  return vastaus.json();
+}
+function virheTeksti(e) {
+  if (e.tyyppi === 'verkko') {
+    return 'Haku ei mennyt läpi. Jos puhelimessa on verkko, todennäköisin syy on, että intervals.icu ei salli hakua ' +
+      'suoraan selaimesta (CORS). Silloin vaihtoehto A ei toimi ja siirrytään GitHub Actions -malliin (B).';
+  }
+  if (e.tyyppi === 'http' && (e.status === 401 || e.status === 403)) {
+    return 'Avain hylättiin (' + e.status + '). Tarkista, että liitit koko avaimen ilman välilyöntejä.';
+  }
+  if (e.tyyppi === 'http' && e.status === 429) return 'Liikaa hakuja (429). Odota hetki ja yritä uudelleen.';
+  if (e.tyyppi === 'http') return 'intervals.icu vastasi virheellä ' + e.status + '.';
+  return 'Odottamaton virhe: ' + (e && e.message ? e.message : e);
+}
+
+function naytaHyvinvointi(hv, paivia) {
+  const el = $('hv');
+  el.replaceChildren();
+  if (!Array.isArray(hv) || hv.length === 0) {
+    el.appendChild(teksti('Ei hyvinvointidataa tältä jaksolta. Garminin historian siirto voi olla vielä kesken.'));
+    return { paivia: 0, taydet: [], tyhjat: [] };
+  }
+  const kartta = kartoita(hv, 'id', ['id', 'updated']);
+  const taydet = kartta.filter(k => k.maara > 0);
+  const tyhjat = kartta.filter(k => k.maara === 0);
+  el.appendChild(teksti('Päiviä, joilta on rivi: ' + hv.length + ' / ' + paivia + '. Kenttiä, joissa on arvoa: ' + taydet.length + '.'));
+  el.appendChild(taulukko(['Kenttä', 'Päiviä', 'Viimeisin', 'Pvm'],
+    taydet.map(k => [k.kentta, String(k.maara), muotoile(k.kentta, k.viimeisin), pv(k.pvm)]), [1]));
+  if (tyhjat.length) {
+    const d = document.createElement('details');
+    const s = document.createElement('summary');
+    s.textContent = 'Aina tyhjät kentät (' + tyhjat.length + ')';
+    d.appendChild(s);
+    d.appendChild(teksti(tyhjat.map(k => k.kentta).join(', '), 'pieni'));
+    el.appendChild(d);
+  }
+  return { paivia: hv.length, taydet, tyhjat };
+}
+
+function naytaAktiviteetit(akt) {
+  const el = $('akt');
+  el.replaceChildren();
+  if (!Array.isArray(akt) || akt.length === 0) {
+    el.appendChild(teksti('Ei aktiviteetteja tältä jaksolta.'));
+    return { maara: 0, lajit: [], taydet: [] };
+  }
+  const lajit = new Map();
+  for (const a of akt) lajit.set(a.type || '?', (lajit.get(a.type || '?') || 0) + 1);
+  const lajiLista = [...lajit.entries()].sort((a, b) => b[1] - a[1]);
+  el.appendChild(teksti('Aktiviteetteja: ' + akt.length + '.'));
+  el.appendChild(taulukko(['Laji', 'Kpl'], lajiLista.map(([l, n]) => [l, String(n)]), [1]));
+
+  const jarj = [...akt].sort((a, b) => String(b.start_date_local || '').localeCompare(String(a.start_date_local || '')));
+  const km = m => (typeof m === 'number' ? String(Math.round(m / 100) / 10).replace('.', ',') : '–');
+  el.appendChild(taulukko(['Päivä', 'Laji', 'Nimi', 'Kesto', 'km', 'Syke ka/max', 'Kuorma'],
+    jarj.slice(0, 50).map(a => [
+      pv(a.start_date_local),
+      a.type || '?',
+      muotoile('name', a.name),
+      muotoile('moving_time', a.moving_time != null ? a.moving_time : a.elapsed_time),
+      km(a.distance),
+      muotoile('', a.average_heartrate) + ' / ' + muotoile('', a.max_heartrate),
+      muotoile('', a.icu_training_load)
+    ]), [3, 4, 5, 6]));
+  if (akt.length > 50) el.appendChild(teksti('Näytetään 50 uusinta.', 'pieni'));
+
+  const kartta = kartoita(akt, 'start_date_local', ['id', 'icu_athlete_id']);
+  const taydet = kartta.filter(k => k.maara > 0);
+  const d = document.createElement('details');
+  const s = document.createElement('summary');
+  s.textContent = 'Kaikki aktiviteettikentät, joissa on arvoa (' + taydet.length + ')';
+  d.appendChild(s);
+  d.appendChild(taulukko(['Kenttä', 'Kpl', 'Viimeisin'],
+    taydet.map(k => [k.kentta, String(k.maara), muotoile(k.kentta, k.viimeisin)]), [1]));
+  el.appendChild(d);
+  return { maara: akt.length, lajit: lajiLista, taydet };
+}
+
+function teeYhteenveto(j, hvT, aktT) {
+  const rivit = [];
+  rivit.push('Pilkkitutka Garmin-testi ' + paivays(new Date()) + ', jakso ' + j.oldest + '–' + j.newest);
+  rivit.push('Hyvinvointi: ' + hvT.paivia + ' päivää');
+  rivit.push('  kentät, joissa arvo (päiviä): ' + (hvT.taydet.map(k => k.kentta + ' ' + k.maara).join(', ') || '–'));
+  rivit.push('  aina tyhjät: ' + (hvT.tyhjat.map(k => k.kentta).join(', ') || '–'));
+  rivit.push('Aktiviteetit: ' + aktT.maara + ' kpl; lajit: ' + (aktT.lajit.map(([l, n]) => l + ' ' + n).join(', ') || '–'));
+  rivit.push('  kentät, joissa arvo (kpl): ' + (aktT.taydet.map(k => k.kentta + ' ' + k.maara).join(', ') || '–'));
+  return rivit.join('\n');
+}
+
+async function hae() {
+  const avain = $('avain').value.trim();
+  if (!avain) { naytaTila('Liitä ensin avain.', 'virhe'); return; }
+  try {
+    if ($('muista').checked) localStorage.setItem(LS_AVAIN, avain);
+    else localStorage.removeItem(LS_AVAIN);
+  } catch (e) { /* selain esti tallennuksen; haku toimii silti */ }
+
+  const j = jakso(Number($('paivat').value));
+  $('hae').disabled = true;
+  ['hvKortti', 'aktKortti', 'kopioKortti'].forEach(id => { $(id).hidden = true; });
+  $('kopioTeksti').hidden = true;
+  $('kopioTila').textContent = '';
+  naytaTila('Haetaan…');
+  try {
+    const urheilija = await haeJson('', avain);
+    naytaTila('Yhteys OK: puhelimen selain saa hakea intervals.icusta suoraan (vaihtoehto A toimii). Urheilijatunnus ' +
+      ((urheilija && urheilija.id) || '?') + '.', 'ok');
+    const kysely = '?oldest=' + j.oldest + '&newest=' + j.newest;
+    const [hv, akt] = await Promise.all([haeJson('/wellness' + kysely, avain), haeJson('/activities' + kysely, avain)]);
+    const hvT = naytaHyvinvointi(hv, Number($('paivat').value));
+    const aktT = naytaAktiviteetit(akt);
+    $('hvKortti').hidden = false;
+    $('aktKortti').hidden = false;
+    yhteenveto = teeYhteenveto(j, hvT, aktT);
+    $('kopioKortti').hidden = false;
+  } catch (e) {
+    naytaTila(virheTeksti(e), 'virhe');
+  } finally {
+    $('hae').disabled = false;
+  }
+}
+
+async function kopioi() {
+  try {
+    await navigator.clipboard.writeText(yhteenveto);
+    $('kopioTila').textContent = 'Kopioitu. Liitä se Clauden keskusteluun.';
+  } catch (e) {
+    const ta = $('kopioTeksti');
+    ta.value = yhteenveto;
+    ta.hidden = false;
+    ta.focus();
+    ta.select();
+    $('kopioTila').textContent = 'Kopiointi estettiin: kopioi teksti alla olevasta laatikosta.';
+  }
+}
+
+function unohda() {
+  try { localStorage.removeItem(LS_AVAIN); } catch (e) { /* ei väliä */ }
+  $('avain').value = '';
+  $('muista').checked = false;
+  naytaTila('Avain poistettu tästä laitteesta.');
+}
+
+(function alusta() {
+  let tallessa = null;
+  try { tallessa = localStorage.getItem(LS_AVAIN); } catch (e) { /* ei tallennusta */ }
+  if (tallessa) { $('avain').value = tallessa; $('muista').checked = true; }
+  $('hae').addEventListener('click', hae);
+  $('kopioi').addEventListener('click', kopioi);
+  $('unohda').addEventListener('click', unohda);
+})();
+</script>
+</body>
+</html>
