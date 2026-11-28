@@ -1,6 +1,6 @@
-// Pilkkitutka – service worker v013
+// Pilkkitutka – service worker v014
 // Verkko ensin, välimuisti varalla: jäällä ilman kenttää näkyy viimeksi haettu sivu ja data.
-const VERSIO = 'pilkkitutka-v013';
+const VERSIO = 'pilkkitutka-v014';
 const KUORI = ['./', './index.html', './kartta.js', './tilanne.js', './luotaus.js', './retki.js', './vaarat.js', './jarvisyvyys.js'];
 
 self.addEventListener('install', e => {

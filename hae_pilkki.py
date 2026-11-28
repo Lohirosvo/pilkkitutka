@@ -35,7 +35,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v008"
+VERSIO = "v009"
 UA = "pilkkitutka/v008 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
@@ -925,9 +925,42 @@ def hazor_urlit(teksti, pohja):
     return out
 
 
+HAZOR_JUURI = "https://hazor.iki.fi/ice/"
+HAZOR_KV = 2          # tiedustelun muoto: 2 = mukana koetus (laatat, api, CORS-otsake)
+
+
+def hazor_koetus(sivu):
+    """Koettaa sovelluksen käyttämät osoitteet: laatat ja pistekysely Petolahden päävirtauksen kohdalta.
+    Access-Control-Allow-Origin kertoo, voiko puhelin lukea vastauksen suoraan (pistekysely, laattojen pikselit)."""
+    lat, lon, z = 62.90802, 21.38663, 12
+    x = int((lon + 180) / 360 * 2 ** z)
+    y = int((1 - math.log(math.tan(math.radians(lat)) + 1 / math.cos(math.radians(lat))) / math.pi) / 2 * 2 ** z)
+    attr = lambda n: (re.search(n + r'="([^"]*)"', sivu) or [None, None])[1]
+    tulos = {"data_juuri": attr("data-juuri"), "data_heikotjaat": attr("data-heikotjaat"), "data_rannit": attr("data-rannit"), "kohteet": []}
+    for nimi, u in (("api", f"{HAZOR_JUURI}api/heikko-jaa?lat={lat}&lon={lon}&kieli=fi"),
+                    ("heikot-jaat", f"{HAZOR_JUURI}heikot-jaat/{z}/{x}/{y}.png"),
+                    ("vaylarannit", f"{HAZOR_JUURI}vaylarannit/{z}/{x}/{y}.png")):
+        rivi = {"nimi": nimi, "url": u}
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": UA, "Origin": "https://lohirosvo.github.io"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                runko = r.read(200000)
+                rivi.update(tila=r.status, tyyppi=r.headers.get("Content-Type"), koko=len(runko),
+                            acao=r.headers.get("Access-Control-Allow-Origin"), valimuisti=r.headers.get("Cache-Control"))
+                if nimi == "api":
+                    rivi["vastaus"] = runko[:200].decode("utf-8", "replace")
+                else:
+                    rivi["png"] = runko[:8] == b"\x89PNG\r\n\x1a\n"
+        except Exception as e:
+            rivi["virhe"] = f"{type(e).__name__}: {e}"[:160]
+        tulos["kohteet"].append(rivi)
+        time.sleep(1)
+    return tulos
+
+
 def hae_hazor_tiedustelu(data_kansio, ed):
     vanha = ed or {}
-    if vanha.get("ok") and vanha.get("haettu"):
+    if vanha.get("ok") and vanha.get("haettu") and vanha.get("kv") == HAZOR_KV:
         try:
             ika = (nyt_utc() - dt.datetime.fromisoformat(vanha["haettu"].replace("Z", "+00:00"))).days
             if ika < HAZOR_UUSINTA_VRK:
@@ -972,6 +1005,7 @@ def hae_hazor_tiedustelu(data_kansio, ed):
         ehdokkaat.append(rivi)
     tulos = {"ok": True, "haettu": iso(nyt_utc()), "sivu": HAZOR_SIVU, "sivun_koko": len(sivu),
              "otsikko": (re.search(r"<title>([^<]*)</title>", sivu) or [None, None])[1], "skriptit": skriptit, "ehdokkaat": ehdokkaat,
+             "kv": HAZOR_KV, "koetus": hazor_koetus(sivu),
              "huom": "Tiedustelu: aineiston muoto. Tommi Lahtonen antoi luvan käyttöön (Hannu 28.11.2026)."}
     kansio = os.path.join(data_kansio, "hazor")
     os.makedirs(kansio, exist_ok=True)
@@ -980,7 +1014,11 @@ def hae_hazor_tiedustelu(data_kansio, ed):
     print(f"  sivu {len(sivu)} merkkiä, skriptejä {len(skriptit)}, data-ehdokkaita {len(ehdokkaat)}")
     for r in ehdokkaat[:25]:
         print(f"    {r['url']}  {r.get('tila', '')} {r.get('tyyppi', '')} {r.get('koko', '')} {r.get('virhe', '')}")
-    return {k: tulos[k] for k in ("ok", "haettu", "sivun_koko", "otsikko")} | {"ehdokkaita": len(ehdokkaat), "polku": "data/hazor/tiedustelu.json"}
+    for r in tulos["koetus"]["kohteet"]:
+        print(f"  koe {r['nimi']}: {r.get('tila', '')} {r.get('tyyppi', '')} {r.get('koko', '')} ACAO={r.get('acao')} {r.get('virhe', '')}")
+    acao = {r["nimi"]: r.get("acao") for r in tulos["koetus"]["kohteet"]}
+    return {k: tulos[k] for k in ("ok", "haettu", "sivun_koko", "otsikko", "kv")} | {"ehdokkaita": len(ehdokkaat), "acao": acao,
+                                                                                    "polku": "data/hazor/tiedustelu.json"}
 
 
 def main(argv=None):

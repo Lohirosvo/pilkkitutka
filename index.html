@@ -220,7 +220,7 @@
         <button id="k-kerrosnappi" aria-label="Kerrokset" hidden>≡</button>
       </div>
       <div class="karttatila" id="karttatila"></div>
-      <div class="attr" id="karttaattr">© OpenStreetMap-tekijät · syvyys Traficom · väylät Väylävirasto · jää, virta Copernicus · ei navigointiin</div>
+      <div class="attr" id="karttaattr">© OpenStreetMap-tekijät · syvyys Traficom · väylät Väylävirasto · jää, virta Copernicus · heikot jäät T. Lahtonen (hazor.iki.fi) · ei navigointiin</div>
       <div class="karttapaneeli" id="karttapaneeli" hidden></div>
       <div class="salmityokalu" id="salmityokalu" hidden></div>
     </div>
@@ -269,7 +269,7 @@
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v013';
+const VERSIO = 'v014';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -304,7 +304,7 @@ const VARI = { vesi: 'var(--vari-vesi)', ennuste: 'var(--vari-ennuste)', leiri: 
 const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 },
   jalkiPaalla: false, nayttoPaalla: false, pysahdys: { min: 5, sade: 20 }, kartta: null,
   pilkki: 'tasapaino', aurinko: false,
-  kerrokset: { jaa: false, pohja: false, virta: false, tuuli: false, vaylat: true, vaarat: true }, virtaTaso: 0, virtaviivat: true,
+  kerrokset: { jaa: false, pohja: false, virta: false, tuuli: false, vaylat: true, vaarat: true, hazor: true }, virtaTaso: 0, virtaviivat: true,
   alue: 'meri', paikat: {}, nakymat: {} };
 
 // --- tila
@@ -923,7 +923,7 @@ function korttiLahteet(c) {
   const nimet = { mareografit: 'Mareografit (FMI)', vk_ennuste: 'Vedenkorkeusennuste (FMI)', saa: 'Sääennuste HARMONIE (FMI)',
     lampohistoria: 'Lämpöhavainnot (FMI)', jaa_malli: 'Jäämalli (Copernicus BAL)', jaakartta: 'Jääkartta (Copernicus/FMI)', vk_tilasto: 'Vedenkorkeustilasto',
     syvyys: 'Syvyyskäyrät (Traficom)', vesi: 'Virtaus ja veden lämpö (Copernicus BAL)', vaylat: 'Väylät ja turvalaitteet (Väylävirasto)',
-    jarvet: 'Järvien vedenkorkeus (SYKE)', hazor: 'Vaaralliset jääalueet (T. Lahtonen) – tiedustelu' };
+    jarvet: 'Järvien vedenkorkeus (SYKE)', hazor: 'Vaaralliset jääalueet (T. Lahtonen) – muototarkistus' };
   for (const [k, t] of Object.entries(DATA.tila || {})) {
     const tila = t.ok ? (t.kantaa_edellisesta ? 'edellisestä' : 'ok') : (t.kantaa_edellisesta ? 'ei laskettu' : 'virhe');
     h += `<tr><td>${esc(nimet[k] || k)}</td><td>${esc(tila)}</td></tr>`;
@@ -1398,6 +1398,7 @@ function avaaKartta() {
       if (LPAIKKA_PIIRTO) return lpaikkaNapautus(lat, lon);
       if (!os && (kerrosPaalla() || onJarvi())) { KARTTA.valittu = null; naytaMalliArvot(lat, lon); }
       else if (!os && naytaLpaikkaKohta(lat, lon)) KARTTA.valittu = null;
+      else if (!os && ASET.kerrokset.hazor !== false) { KARTTA.valittu = null; naytaHazorKohta(lat, lon); }
       else naytaKohde(os);
     };
     ANIM = new PK.VirtaAnimaatio(KARTTA, $('kartta-virta'));
@@ -2127,7 +2128,7 @@ function korttiRetki(c) {
     <p class="pieni hiljainen" style="margin:2px 0">Jää: ${esc(J.lahde || 'ei mittausta lähellä – syötä')}${R.jaa != null || R.lumi != null || R.sohjo != null ? ' <button class="nappi toissijainen pieni" id="rt-nollaa">Mittauksesta</button>' : ''}.
       Tehollinen = teräsjää + ½ jäähän kiinni jäätynyttä tummaa kohvajäätä; valkoista ei lasketa (Ilmatieteen laitos).</p>
     <div class="rivi"><div><label for="rt-kuorma">Kuorma</label>${valinta('rt-kuorma', [['kevyt', 'Kevyt (reppu + kaira)'], ['keski', 'Keski (ahkio + luotain)'], ['raskas', 'Raskas (teltta, kamiina, 2 hlö)']], R.kuorma)}</div></div>`;
-  // reitti linnuntietä ja tunnetut vaarat (Petolahden infotaulu, omat vaarapisteet, mitatut salmet)
+  // reitti linnuntietä ja tunnetut vaarat (Petolahti, Åminne, omat vaarapisteet, mitatut salmet)
   if (kohde && lahto) {
     const omat = PISTEET.filter(x => x && x.merkki === 'vaara' && x.lat != null).map(x => ({ lat: x.lat, lon: x.lon, nimi: x.nimi || 'oma vaarapiste', sade: 100 }));
     const rv = PR.reittiVaarat(lahto, kohde, VAARAT.alueet, omat, SALMET, 300), nahty = new Set(), rivit = [];
@@ -2141,7 +2142,7 @@ function korttiRetki(c) {
     h += `<div style="border-left:4px solid ${HAITTA_VARI[rivit.length ? Math.max(...rivit.map(r => r[0])) : 0]};padding-left:8px;margin:8px 0">
       <b class="pieni">Reitti linnuntietä</b>${rivit.length ? `<ul class="pieni" style="margin:2px 0 2px 18px">${rivit.map(([t, x]) => `<li style="color:${HAITTA_VARI[t]}">${esc(x)}</li>`).join('')}</ul>`
         : `<p class="pieni" style="margin:2px 0">Ei tunnettuja virtapaikkoja 300 m:n sisällä.</p>`}
-      <p class="pieni hiljainen" style="margin:2px 0">Kartalla on toistaiseksi vain Petolahden infotaulun virtapaikat sekä omat vaarapisteet ja salmet – merkitsemätön ei tarkoita hyvää jäätä.</p></div>`;
+      <p class="pieni hiljainen" style="margin:2px 0">Tarkistus kattaa Petolahden ja Åminne–Stenskärsfjärdenin virtapaikat sekä omat vaarapisteet ja salmet. Hazorin heikot jäät ja rännit näkyvät kartalla (Heikot jäät), mutta tämä tarkistus ei vielä käytä niitä – katso reitti kartalta. Merkitsemätön ei tarkoita hyvää jäätä.</p></div>`;
   }
   if (!S) h += `<p class="pieni"><b>Sääennustetta ei ole tälle paikalle.</b> Arvio ilman säätä.</p>`;
   else if (sv.km > 25) h += `<p class="pieni hiljainen">Ennuste ${esc(S.nimi)}, ${fi(sv.km)} km päästä.</p>`;
@@ -2225,7 +2226,7 @@ function korttiRetki(c) {
 // ---- karttakerrokset
 let ANIM = null;
 const VAYLA_TILA = new Map();
-const KERROS_NIMET = [['jaa', 'Jää'], ['pohja', 'Pohja °C'], ['virta', 'Virta'], ['tuuli', 'Tuuli'], ['vaylat', 'Väylät'], ['vaarat', 'Vaarat']];
+const KERROS_NIMET = [['jaa', 'Jää'], ['pohja', 'Pohja °C'], ['virta', 'Virta'], ['tuuli', 'Tuuli'], ['vaylat', 'Väylät'], ['vaarat', 'Vaarat'], ['hazor', 'Heikot jäät']];
 function kerrosPaalla() { const k = ASET.kerrokset || {}; return onJarvi() ? !!k.tuuli : !!(k.jaa || k.pohja || k.virta || k.tuuli); }   // aikariippuvat
 function kerrosAika() { const t = Date.now() + KERROS.tunnit * 3600e3; return Math.round(t / 3600e3) * 3600e3; }
 function sidoKerrokset() {
@@ -2258,8 +2259,8 @@ function lataaVaylat() {
 function korttiKerrokset() {
   const el = $('k-kerrokset'); if (!el) return;
   const k = ASET.kerrokset, V = VESI && VESI.virta;
-  const nimet = onJarvi() ? KERROS_NIMET.filter(([a]) => a === 'tuuli' || a === 'vaylat' || a === 'vaarat') : KERROS_NIMET;
-  let h = `<div class="valitsin">${nimet.map(([a, t]) => `<button data-kerros="${a}" class="${k[a] ? 'valittu' : ''}">${t}</button>`).join('')}</div>`;
+  const nimet = onJarvi() ? KERROS_NIMET.filter(([a]) => a === 'tuuli' || a === 'vaylat' || a === 'vaarat' || a === 'hazor') : KERROS_NIMET;
+  let h = `<div class="valitsin">${nimet.map(([a, t]) => `<button data-kerros="${a}" class="${(a === 'vaarat' || a === 'hazor' ? k[a] !== false : k[a]) ? 'valittu' : ''}">${t}</button>`).join('')}</div>`;
   if (onJarvi()) {
     const P = KARTTA && KARTTA.jarvet.find(x => x.tunnus === alue().syvyys);
     h += P ? `<div class="selite">${P.rajat.slice(0, -1).map((b, i) => i < 7 ? `<span style="--c:${PK.JARVI_VARIT[i]}">${fi(b + P.anturiM, b % 1 || P.anturiM ? 1 : 0)}${i === 6 ? '+' : '–' + fi(P.rajat[i + 1] + P.anturiM, (P.rajat[i + 1] + P.anturiM) % 1 ? 1 : 0)} m</span>` : '').join('')}</div>
@@ -2279,6 +2280,7 @@ function korttiKerrokset() {
   if (k.tuuli) sel.push('<span style="--c:#ffffff">tuuli: nuoli = mihin puhaltaa, keski/puuska</span>');
   if (k.vaylat) sel.push('<span style="--c:#ffd166">väylä, luku = mitoitussyväys</span><span>merimerkit, kun näkymä on alle 5,5 km leveä</span>');
   if (k.vaarat !== false) sel.push('<span style="--c:#d81e1e">tunnettu virtapaikka (suuntaa-antava, napauta)</span>');
+  if (k.hazor !== false) sel.push(HAZOR_SELITE.map(([v, t]) => `<span style="--c:${v}">${t}</span>`).join('') + '<span>heikot jäät: päivää auki keväällä · napauta kohtaa</span>');
   if (SALMET.length) sel.push('<span style="--c:#4fd3ff">salmi &lt; 5 cm/s</span><span style="--c:#ffc928">5–15</span><span style="--c:#ff4081">&gt; 15</span>');
   if (sel.length) h += `<div class="selite">${sel.join('')}</div>`;
   h += '<p class="pieni hiljainen" id="kerros-lahde"></p>';
@@ -2286,7 +2288,7 @@ function korttiKerrokset() {
   if (meri && k.virta && ASET.virtaviivat) h += '<p class="pieni hiljainen">Virtaviivat havainnollistavat mallin virtausta: liike on liioiteltu (noin 4 px/s per cm/s).</p>';
   el.innerHTML = h;
   el.querySelectorAll('[data-kerros]').forEach(b => b.onclick = () => {
-    const a = b.dataset.kerros; ASET.kerrokset[a] = !ASET.kerrokset[a];
+    const a = b.dataset.kerros; ASET.kerrokset[a] = (a === 'vaarat' || a === 'hazor') ? ASET.kerrokset[a] === false : !ASET.kerrokset[a];
     if (ASET.kerrokset[a] && a === 'jaa') ASET.kerrokset.pohja = false;      // täytöt eivät päällekkäin
     if (ASET.kerrokset[a] && a === 'pohja') ASET.kerrokset.jaa = false;
     kirjoitaLS('pilkki_asetukset', ASET);
@@ -2308,7 +2310,9 @@ function korttiKerrokset() {
     if (meri && k.virta) osat.push(V ? 'virta: malli, 3 h välein' : VESI_TILA === 'lataa' ? 'virta: ladataan…' : 'virtausdataa ei ole');
     if (k.tuuli) osat.push('tuuli: HARMONIE-pisteet');
     if (k.vaylat) osat.push('väylät: Väylävirasto');
-    if (k.vaarat !== false) osat.push('virtapaikat: Petolahden infotaulu 2021 (muilla alueilla ei vielä karttasijainteja)');
+    if (k.vaarat !== false) osat.push('virtapaikat: Petolahden infotaulu 2021 ja Åminne–Stenskärsfjärdenin kartta (muualla ei omia merkintöjä)');
+    if (k.hazor !== false) osat.push(KARTTA && KARTTA.hazorTila && KARTTA.hazorTila.virhe && !KARTTA.hazorTila.ok ? 'heikot jäät: hazor.iki.fi ei vastaa (verkko?)'
+      : 'heikot jäät ja rännit: Tommi Lahtonen, hazor.iki.fi (Sentinel-1/-2, Landsat), käytetty luvalla');
     const e = $('kerros-lahde'); if (e) e.textContent = osat.join(' · ');
   };
   const r = $('kerros-aika');
@@ -2356,9 +2360,11 @@ function naytaMalliArvot(lat, lon) {
   el.innerHTML = `<b>Kohdan malliarvot</b> <span class="pieni hiljainen">${klo(t)} · ${fi(lat, 4)} N, ${fi(lon, 4)} E</span>
     <p class="pieni" style="margin:6px 0">${rivit.length ? rivit.join('<br>') : 'Ei malliarvoja tälle kohdalle.'}</p>
     <p class="pieni hiljainen" style="margin:4px 0">Mallit 2 km: lahdessa ja salmessa voi olla aivan muuta. Ei kerro, kantaako jää.</p>
+    ${ASET.kerrokset.hazor !== false ? '<p class="pieni" id="ma-hazor" style="margin:4px 0"></p>' : ''}
     <div class="rivi"><button class="nappi toissijainen" id="ma-sulje">Sulje</button></div>`;
   el.hidden = false;
   $('ma-sulje').onclick = suljePaneeli;
+  if (ASET.kerrokset.hazor !== false) hazorKohta(lat, lon, 'ma-hazor');
 }
 
 // ---- alueet: meri ja järvet (v006, Hannu 24.11.2026: Lappajärvi, Varpula, Hirvijärvi omiin ikkunoihin)
@@ -2511,9 +2517,11 @@ function naytaJarviKohta(lat, lon) {
   el.innerHTML = `<b>${esc(a.nimi)}</b> <span class="pieni hiljainen">${fi(lat, 4)} N, ${fi(lon, 4)} E</span>
     <p class="pieni" style="margin:6px 0">${rivit.join('<br>')}</p>
     <p class="pieni hiljainen" style="margin:4px 0">Ei kerro, kantaako jää. Ei navigointiin.</p>
+    ${ASET.kerrokset.hazor !== false ? '<p class="pieni" id="ma-hazor" style="margin:4px 0"></p>' : ''}
     <div class="rivi"><button class="nappi" id="jk-reika">Reikä tähän</button><button class="nappi toissijainen" id="ma-sulje">Sulje</button></div>`;
   el.hidden = false;
   $('ma-sulje').onclick = suljePaneeli;
+  if (ASET.kerrokset.hazor !== false) hazorKohta(lat, lon, 'ma-hazor');
   $('jk-reika').onclick = () => { suljePaneeli(); avaaReikaDialogi({ lat, lon, t: Date.now(), syvyysEhdotus: oma ? Math.max(0.3, Math.round(oma.o.m * 10) / 10) : d && pain != null ? Math.max(0.3, d.m - pain) : d ? d.m : null }); };
 }
 
@@ -2920,6 +2928,35 @@ function ottiNapautus(lat, lon) {
 // ---- tunnetut virtapaikat (vaarat.js, v010)
 const VAARAT = window.PILKKI_VAARAT || { lahteet: {}, alueet: [], lahtopaikat: [], ilmanSijaintia: [] };
 const HAZOR_URL = 'https://hazor.iki.fi/ice/danger';
+// [T] hazor vaara.js 28.11.2026: selitteen värit ja api/heikko-jaa -> { luokka, paivia, ranni }
+const HAZOR_SELITE = [['#fff09a', '2–4'], ['#ffd60a', '5–9'], ['#ff8c00', '10–19'], ['#dc1e28', '20–39'], ['#78005a', '40+'], ['#1e64c8', 'ränni']];
+const hazorLinkki = (lat, lon) => `${HAZOR_URL}#15/${lat.toFixed(5)}/${lon.toFixed(5)}`;
+function hazorKohta(lat, lon, id) {
+  const ulos = h => { const e = $(id); if (e) e.innerHTML = h; };
+  const linkki = `<a href="${hazorLinkki(lat, lon)}" target="_blank" rel="noopener">Avaa kohta hazor-kartassa ↗</a>`;
+  ulos('Heikot jäät (hazor): kysytään…');
+  const ohi = new AbortController(), ajastin = setTimeout(() => ohi.abort(), 8000);
+  fetch(`${PK.HAZOR_JUURI}api/heikko-jaa?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&kieli=fi`, { headers: { Accept: 'application/json' }, signal: ohi.signal })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+    .then(d => {
+      const osat = [];
+      if (d.ranni) osat.push('<b>Laivaväylän ränni</b> (Sentinel-1, talvet 2021–2026): jää voi olla rikottu tai heikko.');
+      if (d.luokka > 0) osat.push(`<b>Heikon jään alue</b>: ${d.paivia != null ? `keväällä auki ${esc(String(d.paivia))} päivää, kun muu jää vielä kesti` : `luokka ${esc(String(d.luokka))}`}.`);
+      if (!osat.length) osat.push('Satelliittiaineistossa ei heikkoa jäätä tässä kohdassa. Se ei tarkoita hyvää jäätä: matalikot, pienet puronsuut, railot ja ohut alkutalven jää eivät näy.');
+      ulos(osat.join('<br>') + ` <span class="hiljainen">Tommi Lahtonen, hazor.iki.fi.</span> ${linkki}`);
+    })
+    .catch(() => ulos(`Heikot jäät (hazor): kohtaa ei saatu kysyttyä (verkko tai selaimen esto). ${linkki}`))
+    .finally(() => clearTimeout(ajastin));
+}
+function naytaHazorKohta(lat, lon) {
+  const el = $('karttapaneeli');
+  el.innerHTML = `<b>Kohta</b> <span class="pieni hiljainen">${fi(lat, 4)} N, ${fi(lon, 4)} E</span>
+    <p class="pieni" id="hz-tulos" style="margin:6px 0"></p>
+    <p class="pieni hiljainen" style="margin:4px 0">Kysely lähettää napautetun kohdan koordinaatit hazor.iki.fi:hin (ei muuta tietoa). Ei kerro, kantaako jää.</p>
+    <div class="rivi"><button class="nappi toissijainen" id="hz-sulje">Sulje</button></div>`;
+  el.hidden = false; $('hz-sulje').onclick = suljePaneeli;
+  hazorKohta(lat, lon, 'hz-tulos');
+}
 function naytaVaara(V) {
   const el = $('karttapaneeli'), L = VAARAT.lahteet[V.lahde] || {};
   el.innerHTML = `<b>${esc(V.nimi)}</b> <span class="pieni hiljainen">tunnettu virtapaikka</span>
@@ -2956,8 +2993,8 @@ function piirra() {
   for (const id of ['k-jaa', 'k-tilasto', 'k-vesilampo']) { const e = $(id); if (e) e.hidden = jarvi; }
   document.title = jarvi ? `Pilkkitutka – ${alue().nimi}` : 'Pilkkitutka';
   const attr = $('karttaattr'); if (attr) attr.textContent = jarvi
-    ? '© OpenStreetMap-tekijät · syvyys ' + (alue().syvyys === 'lappajarvi' ? '© Maanmittauslaitos' : alue().syvyys ? 'oma C-MAP-luotaus' : '–') + ' · vedenkorkeus SYKE · ei navigointiin'
-    : '© OpenStreetMap-tekijät · syvyys Traficom · väylät Väylävirasto · jää, virta Copernicus · ei navigointiin';
+    ? '© OpenStreetMap-tekijät · syvyys ' + (alue().syvyys === 'lappajarvi' ? '© Maanmittauslaitos' : alue().syvyys ? 'oma C-MAP-luotaus' : '–') + ' · vedenkorkeus SYKE · heikot jäät T. Lahtonen (hazor.iki.fi) · ei navigointiin'
+    : '© OpenStreetMap-tekijät · syvyys Traficom · väylät Väylävirasto · jää, virta Copernicus · heikot jäät T. Lahtonen (hazor.iki.fi) · ei navigointiin';
   const kortit = jarvi ? [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiKasvu, korttiSaa, korttiLahteet]
     : [korttiPaikka, korttiVaroitukset, korttiMittaus, korttiVedenkorkeus, korttiJaa, korttiKasvu, korttiSaa, korttiTilasto, korttiLahteet];
   for (const k of kortit) {

@@ -1,6 +1,9 @@
 /* Pilkkitutka – kartta.js v008 (24.11.2026)
  * v008 (Hannu 24.11.: "Miksi ei käyriä kartoissa. Merellä on?"): järvien syvyyskäyrät samaan kerrokseen kuin meren käyrät, tummempi tyyli.
  *      Omat Lowrance-käyrät (luotaus.js) ruskeina, pilkkipaikan rajaus katkoviivalla.
+ * v010 (Hannu 28.11.): tunnetut virtapaikat (vaarat.js) punaisina alueina, napautus näyttää lähteen.
+ * v011 (Hannu 28.11.: hazor-lupa): Tommi Lahtosen "Vaaralliset jääalueet" -laatat (heikot jäät + väylärännit) suoraan
+ *      hazor.iki.fi:stä, natiivit tasot 6–13, lähennettäessä venytetään. Ei crossOrigin-asetusta: kuvaa ei lueta pikseleinä.
  * v006 (Hannu 24.11.: Lappajärvi, Varpula, Hirvijärvi omiin ikkunoihin): järvien syvyysruudukot (uistelututkasta) kuvana.
  * v005 (Hannu 23.11.: "Oma salmien mittaus kartalta ja nimeäminen. Arvo ja suunta kartalle salmen keskelle. Copernicus pohjan
  *   lämpödata kartalle … virtauksetkin voisi visualisoida mitä voi. Väylät ja merimerkit"):
@@ -22,6 +25,8 @@
 
   // ------------------------------------------------------------ projektio (Web Mercator, yksikköneliö)
   const TILE = 256;
+  const HAZOR_JUURI = 'https://hazor.iki.fi/ice/';   // [T] vaara.js: JUURI + "heikot-jaat/{z}/{x}/{y}.png", api/heikko-jaa vastasi 28.11.
+  const HAZOR_TASOT = ['heikot-jaat', 'vaylarannit'];
   const mx = lon => (lon + 180) / 360;
   const my = lat => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
   const mLon = x => x * 360 - 180;
@@ -379,12 +384,14 @@
       this.lat = opts.lat || 62.972; this.lon = opts.lon || 21.488; this.z = opts.z || 12;
       this.zMin = 6; this.zMax = 18.5;
       this.laatat = new Map(); this.w = 0; this.h = 0; this.dpr = 1;
+      this.hazorLaatat = new Map(); this.hazorTila = { ok: 0, virhe: 0 };
       this.syvyys = [];            // puraSyvyys-tulokset
       this.jalki = []; this.pysahdykset = []; this.pisteet = []; this.reiat = []; this.aktiivinenId = null; this.gps = null; this.leiri = null;
       this.kerrokset = { jaa: false, virta: false, tuuli: false }; this.aika = Date.now(); this.virtaTaso = 0;
       this.jaaMalli = null; this.vesi = null; this.saa = null;
       this.vaylat = [];            // puraVaylat-tulokset osa-alueittain
       this.salmet = []; this.salmiVirtaFn = null; this.salmiLuonnos = null; this.vainNapautus = false;
+      this.vaarat = [];            // vaarat.js: { id, nimi, reuna: [[lat, lon], ...], keski }
       this.jarvet = [];            // puraJarvi-tulokset
       this.seuraa = false; this.valittu = null;
       this.onTap = null; this.onLongPress = null; this.onMuutos = null;
@@ -441,6 +448,8 @@
       else if (this.kerrokset.pohja) this._pohjaKerros();
       this._jarviSyvyys();
       this._syvyys();
+      if (this.kerrokset.hazor !== false) this._hazor();
+      if (this.kerrokset.vaarat !== false) this._vaarat();
       if (this.kerrokset.vaylat) this._vaylat();
       if (this.kerrokset.virta) this._virtaKerros();
       this._salmet();
@@ -466,6 +475,35 @@
       this.laatat.set(avain, img);
       if (this.laatat.size > 300) this.laatat.delete(this.laatat.keys().next().value);
       return img;
+    }
+    _hazorLaatta(taso, z, x, y) {
+      const n = Math.pow(2, z), xx = ((x % n) + n) % n;
+      const avain = taso + '/' + z + '/' + xx + '/' + y;
+      let img = this.hazorLaatat.get(avain);
+      if (img) { this.hazorLaatat.delete(avain); this.hazorLaatat.set(avain, img); return img; }
+      img = new Image();
+      img.onload = () => { this.hazorTila.ok++; this.piirra(); };
+      img.onerror = () => { img._virhe = true; this.hazorTila.virhe++; };
+      if (y >= 0 && y < n) img.src = `${HAZOR_JUURI}${taso}/${z}/${xx}/${y}.png`;
+      this.hazorLaatat.set(avain, img);
+      if (this.hazorLaatat.size > 240) this.hazorLaatat.delete(this.hazorLaatat.keys().next().value);
+      return img;
+    }
+    _hazor() {
+      if (this.z < 5.5) return;
+      const g = this.g, zt = Math.max(6, Math.min(13, Math.round(this.z)));
+      const s = Math.pow(2, this.z - zt), koko = TILE * s;
+      const kx = mx(this.lon) * TILE * Math.pow(2, zt) * s, ky = my(this.lat) * TILE * Math.pow(2, zt) * s;
+      const x0 = Math.floor((kx - this.w / 2) / koko), x1 = Math.floor((kx + this.w / 2) / koko);
+      const y0 = Math.floor((ky - this.h / 2) / koko), y1 = Math.floor((ky + this.h / 2) / koko);
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 60) return;
+      g.save(); g.globalAlpha = 0.85;
+      for (const taso of HAZOR_TASOT) for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+        const img = this._hazorLaatta(taso, zt, x, y);
+        if (img.complete && !img._virhe && img.naturalWidth)
+          g.drawImage(img, x * koko - kx + this.w / 2, y * koko - ky + this.h / 2, koko + 0.5, koko + 0.5);
+      }
+      g.restore();
     }
     _tausta() {
       const g = this.g, zt = Math.max(3, Math.min(18, Math.round(this.z)));
@@ -647,6 +685,44 @@
         }
       }
       g.restore();
+    }
+    _vaarat() {
+      if (!this.vaarat.length) return;
+      const g = this.g, A = this.nakyvaAlue();
+      g.save(); g.lineJoin = 'round';
+      for (const V of this.vaarat) {
+        const r = V._bb || (V._bb = V.reuna.reduce((b, [la, lo]) => [Math.min(b[0], la), Math.max(b[1], la), Math.min(b[2], lo), Math.max(b[3], lo)], [90, -90, 180, -180]));
+        if (r[1] < A.lat_min || r[0] > A.lat_max || r[3] < A.lon_min || r[2] > A.lon_max) continue;
+        g.beginPath();
+        V.reuna.forEach(([la, lo], i) => { const [x, y] = this.ruutu(la, lo); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+        g.closePath();
+        g.fillStyle = 'rgba(220,30,30,0.22)'; g.fill();
+        g.setLineDash([5, 3]); g.strokeStyle = 'rgba(190,0,0,0.9)'; g.lineWidth = 1.6; g.stroke(); g.setLineDash([]);
+      }
+      if (this.z >= 13) {
+        g.font = '700 11px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        for (const V of this.vaarat) {
+          if (V.ala_m2 < 15000) continue;
+          const [x, y] = this.ruutu(V.keski[0], V.keski[1]);
+          if (x < 0 || y < 0 || x > this.w || y > this.h) continue;
+          g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.strokeText('virtapaikka', x, y);
+          g.fillStyle = '#9b0000'; g.fillText('virtapaikka', x, y);
+        }
+      }
+      g.restore();
+    }
+    /** Onko piste vaara-alueen sisällä (ruudun koordinaateissa). */
+    vaaraKohdassa(x, y) {
+      if (this.kerrokset.vaarat === false) return null;
+      for (const V of this.vaarat) {
+        let s = false; const P = V.reuna.map(([la, lo]) => this.ruutu(la, lo));
+        for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+          const [xi, yi] = P[i], [xj, yj] = P[j];
+          if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) s = !s;
+        }
+        if (s) return V;
+      }
+      return null;
     }
     _vaylat() {
       if (!this.vaylat.length || this.z < 9) return;
@@ -895,6 +971,7 @@
         if (d <= 22 && (!paras || d < paras.d)) paras = { laji: 'salmi', kohde: s, d };
       }
       if (paras) return paras;
+      const va = this.vaaraKohdassa(x, y); if (va) return { laji: 'vaara', kohde: va, d: 0 };
       if (this.kerrokset.vaylat && this.merkitNakyvissa()) for (const V of this.vaylat) for (const m of V.merkit) {
         const [px, py] = this.ruutu(m.p[0], m.p[1]), d = Math.hypot(px - x, py - (y + 4));
         if (d <= 18 && (!paras || d < paras.d)) paras = { laji: 'merkki', kohde: m, d };
@@ -1028,7 +1105,7 @@
     }
   }
 
-  const PilkkiKartta = { TILE, mx, my, mLat, mLon, etaisyysM, JALKI, jalkiLisaa, jalkiAlfa, jalkiOsat, PYSAHDYS, pysahdykset,
+  const PilkkiKartta = { TILE, HAZOR_JUURI, mx, my, mLat, mLon, etaisyysM, JALKI, jalkiLisaa, jalkiAlfa, jalkiOsat, PYSAHDYS, pysahdykset,
     puraSyvyys, MERKIT, REIKA, LAJIT, reikaViimeisin, aktiivinenReika, saalisYhteenveto, paalaji, lajiTeksti, yhteenvetoTeksti,
     lajienSyvyydet, syvTeksti, jaaVari, JAA_SELITE, lahinAika, puraVaylat, lahinVayla, merkkiTyyli, merkkiKuvaus, lampoVari,
     LAMPO_ASTEIKKO, kayratJanalla, kentta, VirtaAnimaatio, luokkaRajat, puraJarvi, jarviSyvyys, JARVI_VARIT, Kartta };

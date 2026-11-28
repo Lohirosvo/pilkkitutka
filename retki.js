@@ -1,4 +1,4 @@
-/* Pilkkitutka – retki.js v010 (24.11.2026)
+/* Pilkkitutka – retki.js v011 (28.11.2026): Hannun välineet oletuksena, kuomukärry, reitin vaarat.
  * Hannu 24.11.2026: "Liitä pilkkitutkaan niin että käyttää sääennustetta hyväksi vähän paremmin kuin gemini"
  * (Geminin "Pilkkilogistiikka Pro 3.1").
  * Geminiltä pidetty: kulkuvälineet, kuorma, purkuaika, nopeuden hidastuminen lumessa ja sohjossa, jumiutumisrajat,
@@ -36,16 +36,18 @@
 
   // Kulkuvälineet. Nopeudet, hidasteet, kapasiteetti, purku, ääni: Gemini [O]. Massat (kulkija + varusteet mukana) [O],
   // paitsi Sportsman 570:n kuivapaino 332 kg (Polariksen käyttöohje) [T].
+  // Hannu 28.11.2026: "Oikeasti käytössä: rapala nastakengät, potkuri, ahkio. Sähköpyörä nastoilla ahkio" -> oletuksena nämä kolme.
   const VALINEET = [
-    { id: 'jalka', nimi: 'Kävellen (nastat/ketjut)', nopeus: 4.5, lumi: 0.08, sohjo: 0.14, kap: 1, purku: 3, aani: 15, karry: 'ei', lh: 0, massa: 140, jumiLumi: 35 },
-    { id: 'lumikengat', nimi: 'Lumikengät / metsäsukset', nopeus: 5.2, lumi: 0.02, sohjo: 0.09, kap: 1, purku: 5, aani: 12, karry: 'ei', lh: 0, massa: 140 },
-    { id: 'potkuri', nimi: 'Potkukelkka + hankijalakset', nopeus: 11.5, lumi: 0.45, sohjo: 0.65, kap: 2, purku: 4, aani: 28, karry: 'ei', lh: 0, massa: 160, jumiLumi: 14, jumiSohjo: 6 },
-    { id: 'pyora', nimi: 'Fatbike / sähköpyörä (nastat)', nopeus: 18, lumi: 0.35, sohjo: 0.55, kap: 1, purku: 6, aani: 25, karry: 'kevyt', lh: 0, massa: 150, jumiLumi: 18, jumiSohjo: 8 },
-    { id: 'monkija', nimi: 'Mönkijä (Sportsman 570, nastat)', nopeus: 35, lumi: 0.14, sohjo: 0.38, kap: 3, purku: 12, aani: 130, karry: 'raskas', lh: 3.2, massa: 530, jumiSohjo: 20, moottori: true },
-    { id: 'telamonkija', nimi: 'Telamönkijä (telasarja)', nopeus: 24, lumi: 0.03, sohjo: 0.08, kap: 3, purku: 14, aani: 155, karry: 'raskas', lh: 5.0, massa: 600, moottori: true },
-    { id: 'kelkka_kevyt', nimi: 'Kevyt ilmajäähd. kelkka', nopeus: 38, lumi: 0.04, sohjo: 0.07, kap: 2, purku: 10, aani: 145, karry: 'raskas', lh: 4.5, massa: 380, moottori: true },
-    { id: 'kelkka_iso', nimi: 'Iso nelitahtikelkka', nopeus: 48, lumi: 0.03, sohjo: 0.10, kap: 3, purku: 12, aani: 120, karry: 'raskas', lh: 4.2, massa: 600, moottori: true, lumiJaahdytys: true },
+    { id: 'jalka', nimi: 'Nastakengät + ahkio', nopeus: 4.0, lumi: 0.08, sohjo: 0.14, kap: 2, purku: 3, aani: 15, lh: 0, massa: 140, jumiLumi: 35 },
+    { id: 'potkuri', nimi: 'Potkukelkka (+ ahkio)', nopeus: 11.5, lumi: 0.45, sohjo: 0.65, kap: 2, purku: 4, aani: 28, lh: 0, massa: 160, jumiLumi: 14, jumiSohjo: 6 },
+    { id: 'pyora', nimi: 'Sähköpyörä nastoilla + ahkio', nopeus: 15, lumi: 0.35, sohjo: 0.55, kap: 2, purku: 6, aani: 25, lh: 0, massa: 170, jumiLumi: 18, jumiSohjo: 8 },
+    { id: 'lumikengat', nimi: 'Lumikengät / metsäsukset', nopeus: 5.2, lumi: 0.02, sohjo: 0.09, kap: 1, purku: 5, aani: 12, lh: 0, massa: 140 },
+    { id: 'monkija', nimi: 'Mönkijä (Sportsman 570, nastat)', nopeus: 35, lumi: 0.14, sohjo: 0.38, kap: 3, purku: 12, aani: 130, lh: 3.2, massa: 530, jumiSohjo: 20, moottori: true },
+    { id: 'telamonkija', nimi: 'Telamönkijä (telasarja)', nopeus: 24, lumi: 0.03, sohjo: 0.08, kap: 3, purku: 14, aani: 155, lh: 5.0, massa: 600, moottori: true },
+    { id: 'kelkka_kevyt', nimi: 'Kevyt ilmajäähd. kelkka', nopeus: 38, lumi: 0.04, sohjo: 0.07, kap: 2, purku: 10, aani: 145, lh: 4.5, massa: 380, moottori: true },
+    { id: 'kelkka_iso', nimi: 'Iso nelitahtikelkka', nopeus: 48, lumi: 0.03, sohjo: 0.10, kap: 3, purku: 12, aani: 120, lh: 4.2, massa: 600, moottori: true, lumiJaahdytys: true },
   ];
+  const OLETUS_KAYTOSSA = ['jalka', 'potkuri', 'pyora'];
   const KUORMA = { kevyt: 1, keski: 2, raskas: 3 };
   const LAJI = { ahven: 1.35, siika: 1.45, kuha: 1.0, hauki: 0.65 };        // Gemini [O]
   const SYVYYS = { 2: 1.45, 5: 1.0, 12: 0.72 };                            // Gemini [O]
@@ -179,7 +181,8 @@
     // kulut (Gemini [O])
     let kulut = null;
     if (o.auto) {
-      const A = o.auto, kerroin = A.ev ? (v.karry === 'ei' ? 1 : v.karry === 'kevyt' ? 1.25 : 1.48) : (v.karry === 'ei' ? 1 : v.karry === 'kevyt' ? 1.18 : 1.35);
+      // peräkärry valitaan retkelle (Hannu: kuomuperäkärry, lava 3500 mm) -> Geminin "raskas" lisä [O]
+      const A = o.auto, kerroin = A.karry === 'kuomu' ? (A.ev ? 1.48 : 1.35) : 1;
       const tie = (A.km / 100) * A.kulutus * A.hinta, tieKarry = tie * kerroin;
       const jaalla = (2 * o.km / Math.max(1.2, (nMeno + nPaluu) / 2)) * v.lh * (o.bensa || 1.85);
       kulut = { yht: tieKarry + jaalla, karry: tieKarry - tie, jaalla };
@@ -212,7 +215,43 @@
     return out;
   }
 
-  const PilkkiRetki = { FMI_KANTAVUUS, GOLD_A, JALAN_MIN_CM, HYY_TASOT, VALINEET, KUORMA, LAJI, vaadittuJaa, tehollinenJaa, hyytavyys, kulkuTuuli,
+  // ------------------------------------------------------------ reitti ja tunnetut vaarat
+  /** Linnuntiereitin a -> b ja vaara-alueiden (reuna [[lat, lon], ...]) välinen etäisyys metreinä (0 = kulkee läpi),
+   *  omat vaarapisteet ympyröinä (säde m) ja salmien ylitykset. -> [{ laji, nimi, d, kohde }] etäisyysjärjestyksessä. */
+  function reittiVaarat(a, b, alueet, pisteet, salmet, maxM) {
+    maxM = maxM == null ? 300 : maxM;
+    const lat0 = (a.lat + b.lat) / 2, kx = 111320 * Math.cos(lat0 * RAD), ky = 111320;
+    const T = (la, lo) => [(lo - a.lon) * kx, (la - a.lat) * ky], A = [0, 0], B = T(b.lat, b.lon);
+    const ristiin = (p, q, r, s) => {
+      const d = (q[0] - p[0]) * (s[1] - r[1]) - (q[1] - p[1]) * (s[0] - r[0]); if (d === 0) return false;
+      const t = ((r[0] - p[0]) * (s[1] - r[1]) - (r[1] - p[1]) * (s[0] - r[0])) / d, u = ((r[0] - p[0]) * (q[1] - p[1]) - (r[1] - p[1]) * (q[0] - p[0])) / d;
+      return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+    };
+    const pj = (p, q, r) => { const dx = r[0] - q[0], dy = r[1] - q[1], L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, ((p[0] - q[0]) * dx + (p[1] - q[1]) * dy) / L)) : 0;
+      return Math.hypot(q[0] + t * dx - p[0], q[1] + t * dy - p[1]); };
+    const sisalla = (p, poly) => { let s = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) s = !s; } return s; };
+    const out = [];
+    for (const al of alueet || []) {
+      const poly = al.reuna.map(([la, lo]) => T(la, lo));
+      let d = Infinity;
+      if (sisalla(A, poly) || sisalla(B, poly)) d = 0;
+      for (let i = 0; i < poly.length && d > 0; i++) {
+        const p = poly[i], q = poly[(i + 1) % poly.length];
+        if (ristiin(A, B, p, q)) d = 0;
+        else d = Math.min(d, pj(p, A, B), pj(A, p, q), pj(B, p, q));
+      }
+      if (d <= maxM) out.push({ laji: 'alue', nimi: al.nimi, d, kohde: al, alussa: sisalla(A, poly), lopussa: sisalla(B, poly) });
+    }
+    for (const p of pisteet || []) {
+      const d = Math.max(0, pj(T(p.lat, p.lon), A, B) - (p.sade || 100));
+      if (d <= maxM) out.push({ laji: 'piste', nimi: p.nimi || 'oma vaarapiste', d, kohde: p });
+    }
+    for (const s of salmet || []) if (s.a && s.b && ristiin(A, B, T(s.a[0], s.a[1]), T(s.b[0], s.b[1]))) out.push({ laji: 'salmi', nimi: s.nimi || 'salmi', d: 0, kohde: s });
+    return out.sort((x, y) => x.d - y.d);
+  }
+
+  const PilkkiRetki = { OLETUS_KAYTOSSA, reittiVaarat, FMI_KANTAVUUS, GOLD_A, JALAN_MIN_CM, HYY_TASOT, VALINEET, KUORMA, LAJI, vaadittuJaa, tehollinenJaa, hyytavyys, kulkuTuuli,
     hyyTaso, saaAjalla, sadeValilla, suunta, mista, nopeus, jumi, pysakointi, matkaMin, arvioi, jarjesta, kelpaa, lahtoikkuna, fmt };
   if (typeof module !== 'undefined' && module.exports) module.exports = PilkkiRetki;
   else root.PilkkiRetki = PilkkiRetki;
