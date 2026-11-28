@@ -1,0 +1,134 @@
+{
+ "sovellus": "pilkkitutka",
+ "versio": "v017",
+ "tyyppi": "ottipaikat",
+ "luotu": "2026-11-28",
+ "mittaukset": [],
+ "pisteet": [
+  {
+   "id": 1764400000000,
+   "t": 1795835629081,
+   "lat": 63.20583,
+   "lon": 21.43889,
+   "merkki": "ahven",
+   "nimi": "Hägnesfladan",
+   "kuvaus": "Noin puoli kilometriä Raippaluodon sillan jälkeen tie vasemmalle; tien päästä lahdelle. Lahti suualueineen on suosittu. Lännempänä yli kilometrin niemen takana lisää lahtia.\nHuom: suualueella jää voi olla heikkoa.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-01"
+  },
+  {
+   "id": 1764400000001,
+   "t": 1795835629081,
+   "lat": 63.20556,
+   "lon": 21.36722,
+   "merkki": "ahven",
+   "nimi": "Väderskatbottnen",
+   "kuvaus": "Iso, vähemmän pilkitty lahti, lähimmillään noin 400 m tiestä. Lähtö maantieltä noin 3,6 km Raippaluodon kylästä Norra Vallgrundin suuntaan, kelkkauraa pitkin. Ahvenparvia ajoittain, myös säynävää.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-02"
+  },
+  {
+   "id": 1764400000002,
+   "t": 1795835629081,
+   "lat": 63.28028,
+   "lon": 21.29278,
+   "merkki": "ahven",
+   "nimi": "Revöfjärden",
+   "kuvaus": "Björköhön vievän tien lähes kilometrin siltapenkereeltä, tai Norra Vallgrundista Panikeen päin reilut 10 km ja sitten Vistanin suuntaan 5 km hiekkatietä venesatamalle. Revön eteläosan kaksi isoa lahtea ja selän karikot.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-03"
+  },
+  {
+   "id": 1764400000003,
+   "t": 1795835629081,
+   "lat": 63.30111,
+   "lon": 21.24222,
+   "merkki": "ahven",
+   "nimi": "Kalskärsfjärden (Vistan)",
+   "kuvaus": "Vistanin venesatamalta pari kilometriä eteenpäin, Domarskat-viitalta oikealle, 'Yleinen tie päättyy' -kyltiltä noin kilometrin polku metsän läpi kutulahdelle. Lahti parin kilometrin pituinen; ahvenet liikkuvat ympäri lahtea, myös alle metrin vedessä. Huippupäivinä satoja pilkkijöitä.\nHuom: koillisreunan salmien suut – virta heikentää jäätä.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-04"
+  },
+  {
+   "id": 1764400000004,
+   "t": 1795835629081,
+   "lat": 63.26889,
+   "lon": 21.09667,
+   "merkki": "ahven",
+   "nimi": "Grisselskäret, Söderudden",
+   "kuvaus": "Söderuddenin eteläpuolella saarta ympäröi lahdenperukoita, joihin laskee puroja.\nHuom: puronsuilla jää on heikkoa.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-05"
+  },
+  {
+   "id": 1764400000005,
+   "t": 1795835629081,
+   "lat": 63.29222,
+   "lon": 21.13083,
+   "merkki": "ahven",
+   "nimi": "Klobbfjärden",
+   "kuvaus": "Söderuddenista Panikeen päin: Klobbskatin kalasataman tien jälkeen Panikeen menevä tie ylittää sillan; sillan oikealla puolella karikkoinen, monikilometrinen lahti.\nHuom: sillan alla virtaa.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-06"
+  },
+  {
+   "id": 1764400000006,
+   "t": 1795835629081,
+   "lat": 63.305,
+   "lon": 21.175,
+   "merkki": "ahven",
+   "nimi": "Paniken lahti",
+   "kuvaus": "Ennen Paniken kylää tien oikealla puolella lahti, johon laskee pieni puro; edempänä runsaasti lahtia.\nHuom: lehti varoittaa sulista salmista; puronsuulla heikkoa jäätä.\nSijainti arvioitu Paniken kylän ja jutun kartan perusteella ±1 km.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-07"
+  },
+  {
+   "id": 1764400000007,
+   "t": 1795835629081,
+   "lat": 63.19889,
+   "lon": 21.2025,
+   "merkki": "ahven",
+   "nimi": "Högskärsviken, Södra Vallgrund",
+   "kuvaus": "Södra Vallgrundin edustalla syvälle saareen pistävä lahti, johon laskee pari puroa.\nHuom: puronsuilla heikkoa jäätä.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-08"
+  },
+  {
+   "id": 1764400000008,
+   "t": 1795835629081,
+   "lat": 63.33639,
+   "lon": 21.26333,
+   "merkki": "ahven",
+   "nimi": "Vitfågelskärs sund, Björköby",
+   "kuvaus": "Björköbyn kylän pohjoisreunalta tie vasemmalle, josta parin kilometrin kävely. Alueella useita lahtia. Autolla ajo tietä pitkin kielletty (jutun aikaan).\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-09"
+  },
+  {
+   "id": 1764400000009,
+   "t": 1795835629081,
+   "lat": 63.36,
+   "lon": 21.3025,
+   "merkki": "ahven",
+   "nimi": "Svedjehamn, Björköby",
+   "kuvaus": "Satamaan Björköbyn kylän läpi; satamaan tehty lisää pysäköintiä. Jutun aikaan satamasta vasemmalla oleva lahti ja sisäjärvi (kalatien kohdalta) olivat rauhoitettuja, noin 1 km², ei kalasataman kohdalla – nykytila tarkistamatta, katso sataman infotaulu ja kalastusrajoitus.fi. Ahvenia rauhoitusalueen ulkopuolelta laajoilta karikkoisilta lahdilta.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-10"
+  },
+  {
+   "id": 1764400000010,
+   "t": 1795835629081,
+   "lat": 63.24972,
+   "lon": 21.60806,
+   "merkki": "ahven",
+   "nimi": "Köklot: Skinnarfjärden",
+   "kuvaus": "Ennen Raippaluodon siltaa oikealle Köklotiin; tie kulkee noin 20 km kärkeen. Tien oikealla puolella yli 5 km sisäselät – tien varren autot vihjaavat paikoista. Kaloja vähemmän kuin Raippaluodossa, mutta mahdollisuus isompiin ahveniin.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-11"
+  },
+  {
+   "id": 1764400000011,
+   "t": 1795835629081,
+   "lat": 63.26389,
+   "lon": 21.72417,
+   "merkki": "ahven",
+   "nimi": "Köklot: Köklotfjärden",
+   "kuvaus": "Köklotin tien oikealla puolella sisäsaaristossa, kohdissa joissa tie kulkee lähellä merta. Laaja selkä: kauemmas kävelevälle riittää lahtia.\nPysäköi yleisen tien varteen, ei yksityisteille; pihojen läpi ei saa kulkea. Ei pilkintää niin läheltä rantaa tai laituria, että se häiritsee asukkaita.\nSesonki jutun mukaan huhtikuun alusta jäiden lähtöön (kutuahven); paras syönti aurinkoisina aamuina hämärästä noin klo 10:een, korkea vesi tuo ahvenia lahtiin.\nSijainti paikannimestä (GeoNames) ±0,5 km – siirrä oikeaan kohtaan.\nLähde: Erä-lehti, \"Pilkille Raippaluotoon\" (Risto Jussila; vuosi ei tiedossa, 1997–2014). Ohjeet ja säännöt jutun ajalta – tarkista kalastusrajoitus.fi.",
+   "ottiId": "era-rl-12"
+  }
+ ],
+ "jalki": [],
+ "reiat": [],
+ "salmet": [],
+ "luotauspaikat": [],
+ "ottilista": []
+}

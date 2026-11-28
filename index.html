@@ -269,7 +269,7 @@
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v016';
+const VERSIO = 'v017';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -937,7 +937,7 @@ function korttiLahteet(c) {
   const L = VAARAT.lahteet || {};
   h += `<p><b>Vaarallisten jäiden tiedot</b></p>
     <p class="hiljainen">${L.hazor ? `<a href="${HAZOR_URL}" target="_blank" rel="noopener">${esc(L.hazor.nimi)}</a>. Kiitos Tommi Lahtoselle. ${esc(L.hazor.huom)}<br>` : ''}
-      ${L.petolahti ? esc(L.petolahti.nimi) + '.<br>' : ''}${L.aminne ? esc(L.aminne.nimi) + '.<br>' : ''}${L.gemini ? esc(L.gemini.nimi) + '.' : ''}</p>
+      ${L.petolahti ? esc(L.petolahti.nimi) + '.<br>' : ''}${L.aminne ? esc(L.aminne.nimi) + '.<br>' : ''}${L.gemini ? esc(L.gemini.nimi) + '.<br>' : ''}${L.era ? esc(L.era.nimi) + '.' : ''}</p>
     <p class="hiljainen">Merkitty alue on tunnettu vaarapaikka. Merkitsemätön ei tarkoita hyvää jäätä.</p>`;
   $('k-lahteet').innerHTML = h;
 }
@@ -2193,7 +2193,7 @@ function korttiRetki(c) {
       const osat = [...new Set(L.map(x => x.osa))];
       return `<details><summary>Tunnetut heikot kohdat ilman karttasijaintia (${L.length})</summary>
         ${osat.map(o => `<p class="pieni" style="margin:6px 0 2px"><b>${esc(o)}</b></p>` + L.filter(x => x.osa === o).map(x => `<p class="pieni" style="margin:0 0 4px"><b>${esc(x.nimi)}</b>: ${esc(x.teksti)}</p>`).join('')).join('')}
-        <p class="pieni hiljainen">${esc(VAARAT.lahteet.gemini ? VAARAT.lahteet.gemini.nimi + '. ' + VAARAT.lahteet.gemini.huom : '')}</p></details>`; })()}
+        ${[...new Set(L.map(x => x.lahde))].map(k => VAARAT.lahteet[k]).filter(Boolean).map(q => `<p class="pieni hiljainen">${esc(q.nimi + '. ' + q.huom)}</p>`).join('')}</details>`; })()}
     <p class="pieni"><a href="${HAZOR_URL}" target="_blank" rel="noopener">Vaaralliset jääalueet – Tommi Lahtonen, hazor.iki.fi ↗</a> (satelliittiaineisto, käytetty luvalla)</p>
     <p class="pieni hiljainen">Ei kerro, kantaako jää: ohje on suurin sallittu massa ehjälle, tasalaatuiselle jäälle. Halkeamalla kantavuus puolittuu ja risteävillä halkeamilla neljännes (Ilmatieteen laitos). Mittaa jää kulkiessa.
       Purevuus kulkiessa: tuuli ja oma nopeus yhdessä, FMI:n pakkasvaroituksen tasot −25 / −35 / −40 °C (Keski-Suomi).</p>`;
