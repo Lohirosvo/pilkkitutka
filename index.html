@@ -22,6 +22,21 @@
     --nav: rgba(6, 22, 54, .96); --toissijainen: rgba(127, 220, 255, .12);
     --valo-yo: #050f26; --valo-hamara: #2f5fa8; --valo-paiva: #f4d77a; --vari-sateily: #ffffff; --vari-lampo: #ff8a65;
     --virta-heikko: #4fd3ff; --virta-kohtalainen: #ffc928; --virta-voimakas: #ff4081;
+    /* v023: teemaväreiksi nostetut korostukset (ennen kovakoodattu kulta). Merkitysvärit yllä pysyvät samoina kaikissa tummissa teemoissa. */
+    --korostus: #ffc928; --korostus-hehku: rgba(255, 201, 40, .5); --korostus-teksti: #0a1f4d;
+    --nappi-reuna: #8a5a00; --nappi-varjo: 0 2px 0 #8a5a00, 0 0 10px rgba(255, 193, 7, .25);
+    --otsake: linear-gradient(180deg, var(--kulta1) 10%, var(--kulta2) 60%, #ff8f00 100%); --otsake-viiva: #3b2300;
+    --otsake-varjo: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); --otsake-kirjain: normal;
+    --header-tausta: linear-gradient(180deg, rgba(31, 111, 201, .55), rgba(6, 22, 54, .2)); --header-reuna: rgba(127, 220, 255, .35);
+    --header-tila: #cfe6f7; --logo-hehku: 0 0 10px rgba(79, 195, 247, .5);
+    --nav-teksti: #a9c7e4; --nav-valittu: var(--korostus);
+    --teema-tausta: rgba(255, 255, 255, .12); --teema-reuna: rgba(127, 220, 255, .5); --teema-vari: #ffe082;
+    --karttanappi: rgba(9, 36, 88, .92); --karttanappi-reuna: #2c78c8;
+    --karttatila: rgba(9, 36, 88, .9); --karttatila-teksti: #eef7ff;
+    --karttapalkki: rgba(10, 33, 80, .94); --karttapalkki-teksti: #eef7ff;
+    --linkki: #8fd3ff;
+    --fontti-otsikko: inherit; --otsikko-muoto: uppercase; --otsikko-kirjain: normal;
+    --avain: #ffc928; --sarja2: #ffc928; /* briiffin rivien alkusanat ja kausikäyrän edellinen talvi */
   }
   body.aurinko {
     --tausta: #e7f1fa; --tausta-kuvio: linear-gradient(#f4f9fd, #e2eef8);
@@ -35,6 +50,79 @@
     --nav: #0d3a7a; --toissijainen: #e4eef6;
     --valo-yo: #1b2c4f; --valo-hamara: #7ea7da; --valo-paiva: #ffe9a8; --vari-sateily: #b85c00; --vari-lampo: #d84315;
     --virta-heikko: #0288d1; --virta-kohtalainen: #b8860b; --virta-voimakas: #c2185b;
+    --header-tila: #0a1f4d;
+    --linkki: #0b5c96; /* v023: ennen #8fd3ff valkoisella, kontrasti 1,6:1 */
+    --avain: #0b3f86; --sarja2: #0b3f86;
+  }
+  /* v023 Erämaa (tumma): havunvihreä pohja, olki nimessä ja otsikoissa, jäkälä toiminnoissa. */
+  body.t-eramaa {
+    --tausta: #0e1712; --tausta-kuvio: radial-gradient(ellipse at 50% -10%, #23382a 0%, #142019 40%, #0e1712 70%, #09100c 100%);
+    --kortti: rgba(23, 36, 28, .94); --kortti-reuna: #2e4636; --hehku: 0 0 12px rgba(0, 0, 0, .35);
+    --teksti: #eef2e8; --hiljainen: #a7b8a3; --otsikko: #e3cf9a;
+    --kulta1: #c8db9e; --kulta2: #a9c47a; --kulta-teksti: #10200f;
+    --jaa: #9fd3e6; --raja: #2a3f31; --syote: #0b130e; --ruudukko: #22362a; --akseli: #a7b8a3;
+    --nav: rgba(9, 16, 12, .96); --toissijainen: rgba(184, 207, 138, .10);
+    --korostus: #b8cf8a; --korostus-hehku: rgba(184, 207, 138, .45); --korostus-teksti: #10200f;
+    --nappi-reuna: #5f7a3a; --nappi-varjo: 0 2px 0 #5f7a3a;
+    --otsake: linear-gradient(180deg, #f3e6c2 10%, #e3cf9a 55%, #c9a35b 100%); --otsake-viiva: #2b2210;
+    --header-tausta: linear-gradient(180deg, rgba(47, 74, 58, .55), rgba(9, 16, 12, .2)); --header-reuna: rgba(184, 207, 138, .30);
+    --header-tila: #c9d6c4; --logo-hehku: 0 0 8px rgba(0, 0, 0, .5);
+    --nav-teksti: #a7b8a3; --nav-valittu: #e3cf9a;
+    --teema-tausta: rgba(255, 255, 255, .08); --teema-reuna: rgba(184, 207, 138, .45); --teema-vari: #e3cf9a;
+    --karttanappi: rgba(23, 36, 28, .94); --karttanappi-reuna: #3b5a45;
+    --karttatila: rgba(14, 23, 18, .9); --karttatila-teksti: #eef2e8;
+    --karttapalkki: rgba(14, 23, 18, .95); --karttapalkki-teksti: #eef2e8;
+    --linkki: #c8db9e; --avain: #e3cf9a; --sarja2: #e3cf9a;
+    --fontti-otsikko: "Barlow Condensed", "Roboto Condensed", "Avenir Next Condensed", "Arial Narrow", sans-serif-condensed, system-ui, sans-serif;
+  }
+  /* v023 Neon (tumma): yö, turkoosi toiminnoissa, pinkki vain nimessä ja otsikoissa (voimakas virta #ff4081 on oma merkitysvärinsä). */
+  body.t-neon {
+    --tausta: #0c0a24; --tausta-kuvio: radial-gradient(ellipse at 50% -15%, #3a1650 0%, #1a1240 38%, #0c0a24 70%, #07061a 100%);
+    --kortti: rgba(20, 15, 48, .94); --kortti-reuna: #3d3184; --hehku: 0 0 14px rgba(53, 232, 245, .16);
+    --teksti: #f6f3ff; --hiljainen: #b8b0e0; --otsikko: #ff6ad5;
+    --kulta1: #7ff6ff; --kulta2: #2fd8e8; --kulta-teksti: #07061a;
+    --jaa: #8ee8ff; --raja: #2a2360; --syote: #0a081f; --ruudukko: #241d55; --akseli: #b8b0e0;
+    --nav: rgba(9, 7, 28, .96); --toissijainen: rgba(53, 232, 245, .10);
+    --korostus: #35e8f5; --korostus-hehku: rgba(53, 232, 245, .5); --korostus-teksti: #07061a;
+    --nappi-reuna: #127c86; --nappi-varjo: 0 2px 0 #127c86, 0 0 14px rgba(53, 232, 245, .35);
+    --otsake: linear-gradient(90deg, #ff6ad5 0%, #ff9be6 45%, #35e8f5 100%); --otsake-viiva: transparent;
+    --otsake-varjo: drop-shadow(0 0 6px rgba(255, 106, 213, .55)); --otsake-kirjain: italic;
+    --header-tausta: linear-gradient(180deg, rgba(255, 106, 213, .16), rgba(12, 10, 36, .2)); --header-reuna: rgba(255, 106, 213, .45);
+    --header-tila: #d9d3ff; --logo-hehku: 0 0 10px rgba(255, 106, 213, .5);
+    --nav-teksti: #b8b0e0; --nav-valittu: #35e8f5; /* :rootin var(--korostus) ratkeaa jo html-tasolla, siksi suoraan */
+    --teema-tausta: rgba(255, 255, 255, .08); --teema-reuna: rgba(53, 232, 245, .5); --teema-vari: #35e8f5;
+    --karttanappi: rgba(20, 15, 48, .94); --karttanappi-reuna: #3d3184;
+    --karttatila: rgba(12, 10, 36, .9); --karttatila-teksti: #f6f3ff;
+    --karttapalkki: rgba(12, 10, 36, .95); --karttapalkki-teksti: #f6f3ff;
+    --linkki: #7ff6ff; --avain: #7ff6ff; --sarja2: #c6ff6b;
+    --otsikko-kirjain: italic;
+  }
+  /* v023 Kuura (vaalea): huurre ja lumi, petroli korostuksena. Merkitysvärit kuten aurinkotilassa. */
+  body.t-kuura {
+    --tausta: #eef3f2; --tausta-kuvio: linear-gradient(#f6f9f8, #e7efed);
+    --kortti: #ffffff; --kortti-reuna: #c4d8d4; --hehku: 0 1px 4px rgba(18, 48, 46, .10);
+    --teksti: #12302e; --hiljainen: #4f6c6a; --otsikko: #0f6e6a;
+    --kulta1: #168079; --kulta2: #0f6e6a; --kulta-teksti: #ffffff;
+    --jaa: #1d6f9a; --tutka: #2e8b1e; --raja: #d6e4e1; --syote: #ffffff;
+    --punainen: #c62828; --punainen-t: #fde8e6; --keltainen: #a36b00; --keltainen-t: #fff3d6;
+    --info: #1e5f8f; --info-t: #e6f0f6; --hyva-t: #eaf6e6;
+    --ruudukko: #dfe9e7; --akseli: #4f6c6a; --nyt: #12302e;
+    --vari-vesi: #1f6fb2; --vari-ennuste: #a36b00; --vari-leiri: #c62828; --vari-il: #e07b00;
+    --nav: #ffffff; --toissijainen: #e3eeec;
+    --valo-yo: #1b2c4f; --valo-hamara: #7ea7da; --valo-paiva: #ffe9a8; --vari-sateily: #b85c00; --vari-lampo: #d84315;
+    --virta-heikko: #0288d1; --virta-kohtalainen: #b8860b; --virta-voimakas: #c2185b;
+    --korostus: #0f6e6a; --korostus-hehku: rgba(15, 110, 106, .25); --korostus-teksti: #ffffff;
+    --nappi-reuna: #0a4f4c; --nappi-varjo: 0 2px 0 #0a4f4c;
+    --otsake: linear-gradient(180deg, #127a74, #0a4f4c); --otsake-viiva: transparent; --otsake-varjo: none;
+    --header-tausta: linear-gradient(180deg, #ffffff, #f3f7f6); --header-reuna: #c4d8d4;
+    --header-tila: #12302e; --logo-hehku: 0 1px 4px rgba(18, 48, 46, .25);
+    --nav-teksti: #4f6c6a; --nav-valittu: #0f6e6a;
+    --teema-tausta: #ffffff; --teema-reuna: #c4d8d4; --teema-vari: #0f6e6a;
+    --karttanappi: rgba(255, 255, 255, .95); --karttanappi-reuna: #9fbfba;
+    --karttatila: rgba(255, 255, 255, .92); --karttatila-teksti: #12302e;
+    --karttapalkki: rgba(255, 255, 255, .96); --karttapalkki-teksti: #12302e;
+    --linkki: #0a5a7a; --avain: #0f6e6a; --sarja2: #0f6e6a;
+    --otsikko-muoto: none;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -42,23 +130,25 @@
     font: 17px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   body { background: var(--tausta-kuvio); background-attachment: fixed; min-height: 100vh; }
   header { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 10px;
-    background: linear-gradient(180deg, rgba(31, 111, 201, .55), rgba(6, 22, 54, .2)); border-bottom: 1px solid rgba(127, 220, 255, .35); }
-  header img { width: 42px; height: 42px; border-radius: 10px; box-shadow: 0 0 10px rgba(79, 195, 247, .5); flex: 0 0 auto; }
+    background: var(--header-tausta); border-bottom: 1px solid var(--header-reuna); }
+  header img { width: 42px; height: 42px; border-radius: 10px; box-shadow: var(--logo-hehku); flex: 0 0 auto; }
   header h1 { margin: 0; font: 900 24px/1 system-ui, sans-serif; letter-spacing: .04em; text-transform: uppercase;
-    background: linear-gradient(180deg, var(--kulta1) 10%, var(--kulta2) 60%, #ff8f00 100%); -webkit-background-clip: text; background-clip: text;
-    color: transparent; -webkit-text-stroke: 1px #3b2300; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); }
-  header .tila { font-size: 13px; color: #cfe6f7; flex: 1 1 auto; }
-  body.aurinko header .tila { color: #0a1f4d; }
-  .teema { background: rgba(255, 255, 255, .12); border: 1px solid rgba(127, 220, 255, .5); color: #ffe082; border-radius: 10px;
+    background: var(--otsake); -webkit-background-clip: text; background-clip: text; font-style: var(--otsake-kirjain);
+    color: transparent; -webkit-text-stroke: 1px var(--otsake-viiva); filter: var(--otsake-varjo); padding-right: .08em; }
+  header .tila { font-size: 13px; color: var(--header-tila); flex: 1 1 auto; }
+  .teema { background: var(--teema-tausta); border: 1px solid var(--teema-reuna); color: var(--teema-vari); border-radius: 10px;
     min-width: 44px; min-height: 44px; font-size: 22px; }
   nav { display: flex; background: var(--nav); position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
-  nav button { flex: 1; background: none; border: 0; color: #a9c7e4; font: inherit; font-weight: 800; letter-spacing: .02em;
+  nav button { flex: 1; background: none; border: 0; color: var(--nav-teksti); font: inherit; font-weight: 800; letter-spacing: .02em;
     padding: 12px 4px; border-bottom: 4px solid transparent; min-height: 52px; }
-  nav button.valittu { color: #ffc928; border-bottom-color: #ffc928; text-shadow: 0 0 8px rgba(255, 201, 40, .5); }
+  nav button.valittu { color: var(--nav-valittu); border-bottom-color: var(--nav-valittu); text-shadow: 0 0 8px var(--korostus-hehku); }
   main { padding: 10px 10px 40px; max-width: 720px; margin: 0 auto; }
   .kortti { background: var(--kortti); border-radius: 14px; padding: 12px 14px; margin: 0 0 10px;
     border: 1px solid var(--kortti-reuna); box-shadow: var(--hehku); }
-  .kortti h2 { font-size: 16px; margin: 0 0 8px; color: var(--otsikko); text-transform: uppercase; letter-spacing: .05em; font-weight: 900; }
+  .kortti h2 { font-size: 16px; margin: 0 0 8px; color: var(--otsikko); text-transform: var(--otsikko-muoto); letter-spacing: .05em; font-weight: 900;
+    font-family: var(--fontti-otsikko); font-style: var(--otsikko-kirjain); }
+  body.t-eramaa .kortti h2 { font-size: 19px; font-weight: 700; letter-spacing: .04em; }
+  body.t-kuura .kortti h2 { font-size: 17px; letter-spacing: .01em; }
   .hiljainen { color: var(--hiljainen); }
   .pieni { font-size: 14px; }
   .iso { font-size: 26px; font-weight: 800; }
@@ -67,11 +157,11 @@
   label { display: block; font-size: 14px; color: var(--hiljainen); margin-bottom: 2px; }
   input, select { font: inherit; width: 100%; padding: 10px; border: 1px solid var(--kortti-reuna); border-radius: 10px;
     min-height: 50px; background: var(--syote); color: var(--teksti); }
-  input[type=checkbox] { width: 28px; min-height: 28px; height: 28px; accent-color: #ffb300; }
-  button.nappi { font: inherit; font-weight: 800; min-height: 54px; border-radius: 12px; border: 1px solid #8a5a00;
+  input[type=checkbox] { width: 28px; min-height: 28px; height: 28px; accent-color: var(--korostus); }
+  button.nappi { font: inherit; font-weight: 800; min-height: 54px; border-radius: 12px; border: 1px solid var(--nappi-reuna);
     background: linear-gradient(180deg, var(--kulta1), var(--kulta2)); color: var(--kulta-teksti); padding: 10px 16px; width: 100%;
-    box-shadow: 0 2px 0 #8a5a00, 0 0 10px rgba(255, 193, 7, .25); }
-  button.nappi:active { transform: translateY(1px); box-shadow: 0 1px 0 #8a5a00; }
+    box-shadow: var(--nappi-varjo); }
+  button.nappi:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--nappi-reuna); }
   button.nappi:disabled { opacity: .6; }
   button.nappi.toissijainen { background: var(--toissijainen); color: var(--jaa); border: 1px solid var(--kortti-reuna); box-shadow: none; }
   button.nappi.vaara { background: linear-gradient(180deg, #ff8a80, #d32f2f); color: #fff; border-color: #7f0000; box-shadow: 0 2px 0 #7f0000; }
@@ -104,21 +194,21 @@
     margin: 0 0 10px; border: 1px solid var(--kortti-reuna); background: #aad3df; box-shadow: var(--hehku); }
   #kartta { width: 100%; height: 100%; display: block; }
   .karttanapit { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 8px; }
-  .karttanapit button { width: 52px; height: 52px; border-radius: 12px; border: 1px solid #2c78c8; background: rgba(9, 36, 88, .92);
-    font: 800 26px/1 system-ui, sans-serif; color: #ffc928; }
-  .karttanapit button.paalla { background: linear-gradient(180deg, #ffe082, #ffb300); color: #0a1f4d; }
+  .karttanapit button { width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--karttanappi-reuna); background: var(--karttanappi);
+    font: 800 26px/1 system-ui, sans-serif; color: var(--korostus); }
+  .karttanapit button.paalla { background: linear-gradient(180deg, var(--kulta1), var(--kulta2)); color: var(--kulta-teksti); }
   .karttatila { position: absolute; left: 8px; top: 8px; right: 70px; font-size: 13px; pointer-events: none; }
-  .karttatila span { display: inline-block; background: rgba(9, 36, 88, .9); color: #eef7ff; border-radius: 8px; padding: 2px 8px; margin: 0 4px 4px 0; }
+  .karttatila span { display: inline-block; background: var(--karttatila); color: var(--karttatila-teksti); border-radius: 8px; padding: 2px 8px; margin: 0 4px 4px 0; }
   .attr { position: absolute; right: 4px; bottom: 2px; font-size: 10px; background: rgba(255, 255, 255, .8); color: #222; padding: 1px 5px; border-radius: 4px; }
   .karttapaneeli { position: absolute; left: 0; right: 0; bottom: 0; max-height: 78%; overflow: auto; background: var(--tausta);
-    color: var(--teksti); border-top: 2px solid #ffc928; padding: 12px 14px; box-shadow: 0 -4px 14px rgba(0, 0, 0, .35); }
+    color: var(--teksti); border-top: 2px solid var(--korostus); padding: 12px 14px; box-shadow: 0 -4px 14px rgba(0, 0, 0, .35); }
   .merkit { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0; }
   .merkit button { border: 2px solid transparent; border-radius: 10px; background: var(--toissijainen); padding: 6px 2px; min-height: 64px;
     display: flex; flex-direction: column; align-items: center; gap: 3px; font: inherit; color: var(--teksti); }
-  .merkit button.valittu { border-color: #ffc928; box-shadow: 0 0 8px rgba(255, 201, 40, .5); }
+  .merkit button.valittu { border-color: var(--korostus); box-shadow: 0 0 8px var(--korostus-hehku); }
   .merkit small { font-size: 11px; line-height: 1.1; }
   .pallo { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-weight: 800; align-items: center;
-    justify-content: center; border: 2px solid #ffc928; }
+    justify-content: center; border: 2px solid var(--korostus); }
   .emoji { font-size: 24px; line-height: 28px; }
   .kytkin { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--teksti); min-height: 44px; }
   .rivi.rt-valine { flex-wrap: nowrap; }
@@ -128,7 +218,7 @@
   .kytkin > input[type=checkbox] { flex: 0 0 28px; }
   /* reikä ja Kala kiinni */
   .lajinapit { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0; }
-  .lajinapit button { min-height: 78px; border-radius: 12px; border: 2px solid #ffc928; color: #fff; font: inherit; font-weight: 800;
+  .lajinapit button { min-height: 78px; border-radius: 12px; border: 2px solid var(--korostus); color: #fff; font: inherit; font-weight: 800;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-shadow: 0 2px 0 rgba(0, 0, 0, .4); }
   .lajinapit button:active { transform: translateY(1px); filter: brightness(1.2); }
   .lajinapit .kirjain { font-size: 24px; line-height: 1; }
@@ -137,7 +227,7 @@
   .valitsin { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
   .valitsin button { flex: 1 1 0; min-height: 46px; border-radius: 10px; border: 1px solid var(--kortti-reuna); background: var(--toissijainen);
     color: var(--teksti); font: inherit; font-weight: 700; font-size: 15px; padding: 4px 6px; }
-  .valitsin button.valittu { background: linear-gradient(180deg, #ffe082, #ffb300); color: #0a1f4d; border-color: #8a5a00; }
+  .valitsin button.valittu { background: linear-gradient(180deg, var(--kulta1), var(--kulta2)); color: var(--kulta-teksti); border-color: var(--nappi-reuna); }
   .syvyysvalinta { display: flex; align-items: center; gap: 8px; }
   .syvyysvalinta button { flex: 0 0 64px; min-height: 60px; font-size: 22px; }
   .syvyysvalinta input { font-size: 30px; font-weight: 800; text-align: center; min-height: 60px; }
@@ -146,23 +236,23 @@
   /* tilanne */
   .briiffi { list-style: none; padding: 0; margin: 0; }
   .briiffi li { padding: 8px 0 8px 10px; border-bottom: 1px solid var(--raja); border-left: 4px solid transparent; font-size: 16px; line-height: 1.35; }
-  .briiffi li b { color: var(--otsikko); }
+  .briiffi li b { color: var(--avain); }
   .briiffi li.punainen { border-left-color: var(--punainen); background: var(--punainen-t); }
   .briiffi li.keltainen { border-left-color: var(--keltainen); background: var(--keltainen-t); }
   .briiffi li.ok { border-left-color: var(--tutka); }
   .briiffi li.loppu { font-size: 14px; color: var(--hiljainen); border-bottom: 0; }
-  input[type=range] { min-height: 44px; padding: 0; border: 0; background: none; accent-color: #ffc928; flex: 1 1 auto; }
+  input[type=range] { min-height: 44px; padding: 0; border: 0; background: none; accent-color: var(--korostus); flex: 1 1 auto; }
   .kerrokset .valitsin button { min-height: 44px; flex: 1 1 28%; }
   .virtaviivat { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
-  .karttapaneeli a, .kortti a { color: #8fd3ff; }
+  .karttapaneeli a, .kortti a { color: var(--linkki); }
   .rt-ikkuna { display: grid; grid-template-columns: repeat(25, 1fr); gap: 2px; }
   .rt-ikkuna button { height: 26px; border: 0; border-radius: 3px; color: #fff; font-size: 10px; padding: 0; min-width: 0; }
-  .rt-ikkuna button.valittu { outline: 2px solid #ffc928; outline-offset: 1px; }
+  .rt-ikkuna button.valittu { outline: 2px solid var(--korostus); outline-offset: 1px; }
   .lt-rivi { border-top: 1px solid rgba(127,160,200,.25); padding: 6px 0; }
   .lt-rivi .rivi { margin-top: 4px; } .lt-rivi .nappi.pieni { padding: 6px 10px; font-size: 14px; min-height: 0; }
-  .lt-lomake { border: 1px solid rgba(255,201,40,.5); border-radius: 10px; padding: 8px; margin: 6px 0; }
-  .salmityokalu { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(10, 33, 80, .94); color: #eef7ff;
-    border-top: 2px solid #ffc928; padding: 6px 10px; box-shadow: 0 -4px 14px rgba(0, 0, 0, .35); font-size: 13px; line-height: 1.3; }
+  .lt-lomake { border: 1px solid var(--korostus-hehku); border-radius: 10px; padding: 8px; margin: 6px 0; }
+  .salmityokalu { position: absolute; left: 0; right: 0; bottom: 0; background: var(--karttapalkki); color: var(--karttapalkki-teksti);
+    border-top: 2px solid var(--korostus); padding: 6px 10px; box-shadow: 0 -4px 14px rgba(0, 0, 0, .35); font-size: 13px; line-height: 1.3; }
   .salmityokalu .rivi { flex-wrap: nowrap; gap: 6px; margin-top: 4px; }
   .salmityokalu .nappi { min-height: 44px; padding: 4px 8px; font-size: 16px; }
   button.linkki { background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: var(--jaa); text-decoration: underline; text-align: left; }
@@ -175,7 +265,7 @@
   body.kartta-koko.kerrokset-auki #k-kerrokset { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; margin: 0; max-height: 45vh;
     overflow: auto; border-radius: 14px 14px 0 0; }
   body.kartta-koko nav, body.kartta-koko header, body.kartta-koko .aluevalitsin { visibility: hidden; }
-  .ilmoitus { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #ffc928; color: #0a1f4d;
+  .ilmoitus { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--korostus); color: var(--korostus-teksti);
     font-weight: 800; padding: 10px 18px; border-radius: 24px; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); z-index: 20; }
 </style>
 </head>
@@ -262,6 +352,7 @@
   <section id="ruutu-raportit" hidden>
     <div class="kortti" id="k-reiat"></div>
     <div class="kortti" id="k-mittaukset"></div>
+    <div class="kortti" id="k-ulkoasu"></div>
   </section>
 </main>
 
@@ -274,9 +365,10 @@
 'use strict';
 /* Pilkkitutka v006 (24.11.2026) – järvi-ikkunat (Lappajärvi, Varpula, Hirvijärvi), kokonäyttö.
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
+   v023 (28.11.2026) – teemat Erämaa, Neon (tummat) ja Kuura (vaalea) Perus- ja Aurinko-teeman rinnalle; Raportit › Ulkoasu.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v022';
+const VERSIO = 'v023';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -310,7 +402,7 @@ const VARAPISTEET = [                  // jos dataa ei ole, paikat silti valitta
 const VARI = { vesi: 'var(--vari-vesi)', ennuste: 'var(--vari-ennuste)', leiri: 'var(--vari-leiri)', il: 'var(--vari-il)' }; // teemaväreinä style-attribuutissa
 const OLETUS = { paikka: 'Åminne', leiri: { lat: null, lon: null, korkeus_m: 0.57, marginaali_m: 0.15 },
   jalkiPaalla: false, nayttoPaalla: false, pysahdys: { min: 5, sade: 20 }, kartta: null,
-  pilkki: 'tasapaino', aurinko: false,
+  pilkki: 'tasapaino', aurinko: false, teemaTumma: 'perus', teemaVaalea: 'aurinko',
   kerrokset: { jaa: false, pohja: false, virta: false, tuuli: false, vaylat: true, vaarat: true, hazor: true }, virtaTaso: 0, virtaviivat: true,
   alue: 'meri', paikat: {}, nakymat: {} };
 
@@ -987,7 +1079,7 @@ function kausiKaavio(A, T, nykyV, vaatimus, omat) {
   const viiva = (sar, tyyli) => sar.length > 1 ? `<path d="${sar.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')}" fill="none" ${tyyli}/>` : '';
   const ohut = vanhat.length > 20 ? 0.18 : 0.45;
   for (const t of vanhat.slice(1)) s += viiva(t.s.filter(p => p[0] >= KAUSI_D0 - 10 && p[0] <= KAUSI_D1 + 10), `style="stroke:var(--hiljainen)" stroke-opacity="${ohut}" stroke-width="1.2"`);
-  if (vanhat[0]) s += viiva(vanhat[0].s, `style="stroke:var(--otsikko)" stroke-width="1.8"`);
+  if (vanhat[0]) s += viiva(vanhat[0].s, `style="stroke:var(--sarja2)" stroke-width="1.8"`);
   if (vaatimus) {
     s += `<line x1="${vas}" x2="${W - oik}" y1="${Y(vaatimus.y)}" y2="${Y(vaatimus.y)}" style="stroke:#ff8a65" stroke-width="1.4" stroke-dasharray="6 4"/>`;
     s += `<text x="${W - oik - 2}" y="${Y(vaatimus.y) - 3}" font-size="10" text-anchor="end" style="fill:#ff8a65">${esc(vaatimus.teksti)}</text>`;
@@ -1030,7 +1122,7 @@ function korttiKausi() {
   }
   h += kausiKaavio(A, T, nykyV, vaatimus, omat);
   const vanhat = T.filter(t => t.v !== nykyV);
-  h += `<div class="selite"><span style="--c:var(--jaa)">${kausiNimi(nykyV)}</span>${vanhat[0] ? `<span style="--c:var(--otsikko)">${kausiNimi(vanhat[0].v)}</span>` : ''}<span style="--c:var(--hiljainen)">muut talvet${vanhat.length >= KAUSI_VYO_MIN ? ', mediaani ja 10–90 %' : ''}</span>${omat.length ? '<span style="--c:#ff8a65">omat mittaukset</span>' : ''}</div>`;
+  h += `<div class="selite"><span style="--c:var(--jaa)">${kausiNimi(nykyV)}</span>${vanhat[0] ? `<span style="--c:var(--sarja2)">${kausiNimi(vanhat[0].v)}</span>` : ''}<span style="--c:var(--hiljainen)">muut talvet${vanhat.length >= KAUSI_VYO_MIN ? ', mediaani ja 10–90 %' : ''}</span>${omat.length ? '<span style="--c:#ff8a65">omat mittaukset</span>' : ''}</div>`;
   if (vanhat.length >= 2) {
     const mx = vanhat.filter(t => t.max).map(t => t.max[1]), y10 = vanhat.filter(t => t.yli10 != null);
     const aik = y10.length ? y10.reduce((a, b) => a.yli10 <= b.yli10 ? a : b) : null, myoh = y10.length ? y10.reduce((a, b) => a.yli10 >= b.yli10 ? a : b) : null;
@@ -1323,9 +1415,43 @@ function naytaReika(r) {
   $('kr-muokkaa').onclick = () => { suljePaneeli(); avaaReikaDialogi({ muokattava: r }); };
   $('kr-sulje').onclick = suljePaneeli;
 }
+// v023: viisi teemaa. ☀ vaihtaa valitun tumman ja valitun vaalean välillä (vanha ASET.aurinko säilyy sellaisenaan).
+const TEEMAT = {
+  perus:   { nimi: 'Perus', vaalea: false, luokka: '', vari: '#0a2150' },
+  eramaa:  { nimi: 'Erämaa', vaalea: false, luokka: 't-eramaa', vari: '#0e1712' },
+  neon:    { nimi: 'Neon', vaalea: false, luokka: 't-neon', vari: '#0c0a24' },
+  aurinko: { nimi: 'Aurinko', vaalea: true, luokka: 'aurinko', vari: '#0d3a7a' },
+  kuura:   { nimi: 'Kuura', vaalea: true, luokka: 't-kuura', vari: '#eef3f2' },
+};
+function teemaNyt() {
+  if (!TEEMAT[ASET.teemaTumma] || TEEMAT[ASET.teemaTumma].vaalea) ASET.teemaTumma = 'perus';
+  if (!TEEMAT[ASET.teemaVaalea] || !TEEMAT[ASET.teemaVaalea].vaalea) ASET.teemaVaalea = 'aurinko';
+  return ASET.aurinko ? ASET.teemaVaalea : ASET.teemaTumma;
+}
 function asetaTeema() {
-  document.body.classList.toggle('aurinko', !!ASET.aurinko);
-  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = ASET.aurinko ? '#0d3a7a' : '#0a2150';
+  const id = teemaNyt(), t = TEEMAT[id];
+  Object.values(TEEMAT).forEach(x => { if (x.luokka) document.body.classList.remove(x.luokka); });
+  if (t.luokka) document.body.classList.add(t.luokka);
+  document.body.dataset.teema = id;
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t.vari;
+  const b = $('teema');
+  if (b) b.setAttribute('aria-label', ASET.aurinko ? `Tumma näkymä (${TEEMAT[ASET.teemaTumma].nimi})` : `Aurinkotila: vaalea näkymä kirkkaaseen valoon (${TEEMAT[ASET.teemaVaalea].nimi})`);
+  korttiUlkoasu();
+}
+function valitseTeema(id) {
+  const t = TEEMAT[id]; if (!t) return;
+  if (t.vaalea) ASET.teemaVaalea = id; else ASET.teemaTumma = id;
+  ASET.aurinko = t.vaalea;
+  kirjoitaLS('pilkki_asetukset', ASET); asetaTeema();
+}
+function korttiUlkoasu() {
+  const el = $('k-ulkoasu'); if (!el) return;
+  const nappi = id => `<button data-teema="${id}" class="${(TEEMAT[id].vaalea ? ASET.teemaVaalea : ASET.teemaTumma) === id ? 'valittu' : ''}" aria-pressed="${teemaNyt() === id}">${TEEMAT[id].nimi}</button>`;
+  el.innerHTML = `<h2>Ulkoasu</h2><p class="pieni" style="margin:0 0 6px">Käytössä nyt: <b>${TEEMAT[teemaNyt()].nimi}</b></p>
+    <label>Tumma teema</label><div class="valitsin">${['perus', 'eramaa', 'neon'].map(nappi).join('')}</div>
+    <label>Vaalea teema (☀-nappi)</label><div class="valitsin">${['aurinko', 'kuura'].map(nappi).join('')}</div>
+    <p class="pieni hiljainen" style="margin:6px 0 0">☀ vaihtaa valitun tumman ja vaalean välillä. Varoitusten, jään paksuuden, heikkojen jäiden ja virtojen värit ovat samat kaikissa teemoissa.</p>`;
+  el.querySelectorAll('[data-teema]').forEach(b => b.onclick = () => valitseTeema(b.dataset.teema));
 }
 
 // --- kartta: jälki, pysähdykset, omat pisteet (vain tässä puhelimessa)
@@ -1406,9 +1532,9 @@ function paivitaKarttaTila() {
   const el = $('karttatila'); if (!el || !KARTTA) return;
   const osat = [];
   if (ASET.jalkiPaalla) osat.push('<span style="color:#c2185b">● jälki tallentuu</span>');
-  if (SALMI_PIIRTO) osat.push('<span style="color:#ffc928">≈ salmen mittaus: napauta karttaa</span>');
-  if (LPAIKKA_PIIRTO) osat.push('<span style="color:#ffc928">napauta pilkkipaikan keskikohta</span>');
-  if (OTTI_PIIRTO) osat.push(`<span style="color:#ffc928">napauta sijainti: ${esc(OTTI_PIIRTO.nimi)}</span>`);
+  if (SALMI_PIIRTO) osat.push('<span style="color:var(--korostus)">≈ salmen mittaus: napauta karttaa</span>');
+  if (LPAIKKA_PIIRTO) osat.push('<span style="color:var(--korostus)">napauta pilkkipaikan keskikohta</span>');
+  if (OTTI_PIIRTO) osat.push(`<span style="color:var(--korostus)">napauta sijainti: ${esc(OTTI_PIIRTO.nimi)}</span>`);
   if (kerrosPaalla() || SALMET.length) osat.push(`<span>${KERROS.tunnit ? '+' + KERROS.tunnit + ' h ' : 'nyt '}${esc(klo(kerrosAika()))}</span>`);
   if (ASET.kerrokset.vaylat) {
     const va = (DATA && DATA.vaylat_alueet) || [];
