@@ -149,6 +149,9 @@
   input[type=range] { min-height: 44px; padding: 0; border: 0; background: none; accent-color: #ffc928; flex: 1 1 auto; }
   .kerrokset .valitsin button { min-height: 44px; flex: 1 1 28%; }
   .virtaviivat { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  .rt-ikkuna { display: grid; grid-template-columns: repeat(25, 1fr); gap: 2px; }
+  .rt-ikkuna button { height: 26px; border: 0; border-radius: 3px; color: #fff; font-size: 10px; padding: 0; min-width: 0; }
+  .rt-ikkuna button.valittu { outline: 2px solid #ffc928; outline-offset: 1px; }
   .lt-rivi { border-top: 1px solid rgba(127,160,200,.25); padding: 6px 0; }
   .lt-rivi .rivi { margin-top: 4px; } .lt-rivi .nappi.pieni { padding: 6px 10px; font-size: 14px; min-height: 0; }
   .lt-lomake { border: 1px solid rgba(255,201,40,.5); border-radius: 10px; padding: 8px; margin: 6px 0; }
@@ -187,6 +190,7 @@
   <section id="ruutu-tilanne">
     <div class="kortti" id="k-briiffi"></div>
     <div class="kortti" id="k-aikajana"></div>
+    <div class="kortti" id="k-retki"></div>
     <div class="kortti" id="k-virta"></div>
     <div class="kortti" id="k-valo"></div>
     <div class="kortti" id="k-vesilampo"></div>
@@ -255,13 +259,14 @@
 <script src="kartta.js"></script>
 <script src="tilanne.js"></script>
 <script src="luotaus.js"></script>
+<script src="retki.js"></script>
 <script>
 'use strict';
 /* Pilkkitutka v006 (24.11.2026) – järvi-ikkunat (Lappajärvi, Varpula, Hirvijärvi), kokonäyttö.
    v005 (23.11.2026) – tilannekuva, jääturva, kartta (salmet, väylät, pohjan lämpö, virtaviivat), reikäloki.
    Merkinnät koodissa: [T] tarkistettu lähteestä, [L] laskettu, [O] oletus/arvio. */
 
-const VERSIO = 'v009';
+const VERSIO = 'v010';
 const DATA_URL = 'data/pilkki.json';
 
 // --- vakiot
@@ -2008,9 +2013,170 @@ function korttiVesilampo(c) {
   el.innerHTML = h;
 }
 function piirraTilanne(c) {
-  for (const k of [korttiBriiffi, korttiAikajana, korttiValo, korttiVirta, korttiVesilampo]) {
+  for (const k of [korttiBriiffi, korttiAikajana, korttiRetki, korttiValo, korttiVirta, korttiVesilampo]) {
     try { k(c); } catch (e) { console.error(k.name, e); }
   }
+}
+
+// ---- Retki: kulkuväline ja lähtöaika (v010; Hannun Gemini-työkalu "Pilkkilogistiikka Pro 3.1" ennusteella, retki.js)
+const PR = window.PilkkiRetki;
+const RETKI_OLETUS = { kohde: '', km: 3, lahto: 'sij', lahtoMs: null, tunnit: 4, kuorma: 'keski', laji: 'ahven', syvyys: 5,
+  kaytossa: null, massat: {}, jaa: null, tumma: null, lumi: null, sohjo: null,
+  auto: { tyyppi: 'diesel', km: 140, kulutus: 6.0, hinta: 1.75 }, bensa: 1.85 };
+ASET.retki = Object.assign({}, RETKI_OLETUS, ASET.retki || {});
+ASET.retki.auto = Object.assign({}, RETKI_OLETUS.auto, ASET.retki.auto || {});
+const tallennaRetki = () => kirjoitaLS('pilkki_asetukset', ASET);
+const HAITTA_VARI = ['#2e7d32', '#f9a825', '#ef6c00', '#c62828'];
+const HAITTA_NIMI = ['ei huomioita', 'huomioi', 'hankala', 'vaikea'];
+
+function retkiKeskus() { const a = alue(); return onJarvi() ? { lat: a.lat, lon: a.lon } : a.kartta; }
+function retkiKohteet() {
+  const k = retkiKeskus(), lahella = p => km(k.lat, k.lon, p.lat, p.lon) <= (onJarvi() ? 15 : 60), out = [];
+  for (const P of LPAIKAT) if (P.alue === ASET.alue) out.push({ k: 'lp:' + P.id, nimi: P.nimi + ' (pilkkipaikka)', lat: P.lat, lon: P.lon });
+  for (const p of PISTEET) if (p && p.lat != null && lahella(p)) out.push({ k: 'p:' + p.id, nimi: p.nimi || ((PK.MERKIT[p.merkki] || {}).nimi || 'Piste'), lat: p.lat, lon: p.lon });
+  return out;
+}
+function retkiLahdot() {
+  const out = [];
+  if (SIJ) out.push({ k: 'sij', nimi: SIJ.nimi ? 'Valittu paikka: ' + SIJ.nimi : 'Valittu paikka / GPS', lat: SIJ.lat, lon: SIJ.lon });
+  if (!onJarvi() && ASET.leiri && ASET.leiri.lat != null) out.push({ k: 'leiri', nimi: 'Leiri', lat: ASET.leiri.lat, lon: ASET.leiri.lon });
+  for (const p of retkiKohteet()) out.push(Object.assign({}, p, { nimi: 'Piste: ' + p.nimi }));
+  return out;
+}
+/** Pimeät jaksot (aurinko alle −6°) väliltä, 10 min askel. */
+function retkiPimeat(lat, lon) {
+  return (a, b) => {
+    const out = []; let alku = null;
+    for (let t = a; t <= b + 600e3; t += 600e3) {
+      const pimea = PT.auringonKorkeus(lat, lon, t) < -6;
+      if (pimea && alku == null) alku = t;
+      if (!pimea && alku != null) { out.push({ alku, loppu: t }); alku = null; }
+    }
+    if (alku != null) out.push({ alku, loppu: b + 600e3 });
+    return out;
+  };
+}
+/** Jää- ja lumilähtötiedot: käsin syötetty > oma mittaus 5 km / 7 vrk > jäämalli (meri, kokonaispaksuus [O]). */
+function retkiJaa(kohde, lahto) {
+  const R = ASET.retki, tuore = p => p ? mittauksetLahella(p, 5).filter(x => Date.now() - x.t < 7 * 864e5).pop() : null;
+  const mk = tuore(kohde), ml = mk ? null : tuore(lahto), m = mk || ml, ref = mk ? kohde : lahto;
+  const out = { jaa: null, lumi: 0, sohjo: 0, laatu: 'tiivis', lahde: '' };
+  if (m) Object.assign(out, { jaa: m.jaa_cm, lumi: m.lumi_cm || 0, sohjo: m.kohva ? 3 : 0, laatu: m.lumi_laatu || 'tiivis',
+    lahde: `oma mittaus ${aikaFi(m.t, { day: 'numeric', month: 'numeric' })}, ${fi(km(ref.lat, ref.lon, m.lat, m.lon), 1)} km ${mk ? 'kohteesta' : 'lähtöpaikasta'}` });
+  else if (!onJarvi() && kohde) {
+    const jm = jaaMallissa(kohde);
+    if (jm && !jm.eiNae && jm.paksuus && jm.paksuus[jm.i] != null) Object.assign(out, { jaa: Math.round(jm.paksuus[jm.i]), lahde: 'Copernicus-jäämalli (kokonaispaksuus, ei teräsjää – mittaa) [O]' });
+  }
+  if (R.jaa != null) { out.jaa = R.jaa; out.lahde = 'syötit itse'; }
+  if (R.lumi != null) out.lumi = R.lumi;
+  if (R.sohjo != null) out.sohjo = R.sohjo;
+  out.teho = out.jaa == null ? null : PR.tehollinenJaa(out.jaa, R.tumma || 0);
+  return out;
+}
+function korttiRetki(c) {
+  const el = $('k-retki'); if (!el) return;
+  const R = ASET.retki, kohteet = retkiKohteet(), lahdot = retkiLahdot();
+  const kohde = kohteet.find(x => x.k === R.kohde) || null, lahto = lahdot.find(x => x.k === R.lahto) || lahdot[0] || null;
+  const kmMatka = kohde && lahto ? km(lahto.lat, lahto.lon, kohde.lat, kohde.lon) : R.km;
+  const suunta = kohde && lahto ? PR.suunta(lahto, kohde) : null;
+  const paikka = kohde || lahto || retkiKeskus();
+  const sv = valitseSaa(paikka), S = sv && sv.kohde;
+  const nyt = Date.now(), seurTunti = Math.ceil(nyt / 3600e3) * 3600e3;
+  if (!R.lahtoMs || R.lahtoMs < nyt - 1800e3) R.lahtoMs = seurTunti;
+  const J = retkiJaa(kohde, lahto);
+  const kohvaRaja = J.teho != null ? kohvaraja(J.teho, (LUMI[J.laatu] || LUMI.tiivis).rho) : null;
+  const kaytossa = PR.VALINEET.filter(v => !R.kaytossa || R.kaytossa.includes(v.id));
+  const o = { km: kmMatka, suunta, jaaCm: J.teho, lumi: J.lumi, sohjo: J.sohjo, kohvaRaja, kuorma: R.kuorma, laji: R.laji, syvyys: R.syvyys,
+    saa: S, tunnit: R.tunnit, lahtoMs: R.lahtoMs, aurinko: retkiPimeat(paikka.lat, paikka.lon), massat: R.massat,
+    auto: { km: R.auto.km, kulutus: R.auto.kulutus, hinta: R.auto.hinta, ev: R.auto.tyyppi === 'ev' }, bensa: R.bensa };
+  const tulokset = PR.jarjesta(kaytossa.map(v => PR.arvioi(v, o))), paras = tulokset.find(PR.kelpaa);
+  const tunnit = []; for (let t = seurTunti; t <= seurTunti + 48 * 3600e3; t += 3600e3) tunnit.push(t);
+  const valinta = (id, arvot, nyk) => `<select id="${id}">${arvot.map(([v, t]) => `<option value="${esc(String(v))}" ${String(v) === String(nyk) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+  const tila = r => r.jaaTila === 'täyttyy' ? `<span style="color:${HAITTA_VARI[0]}">ohje täyttyy</span>` : r.jaaTila === 'niukka' ? `<span style="color:${HAITTA_VARI[1]}">niukka</span>`
+    : r.jaaTila === 'ei' ? `<b style="color:${HAITTA_VARI[3]}">ohje ei täyty</b>` : 'jää ?';
+  let h = `<h2>Retki – kulkuväline ja lähtöaika</h2>
+    <div class="rivi"><div><label for="rt-lahto">Mistä</label>${valinta('rt-lahto', lahdot.map(x => [x.k, x.nimi]), lahto ? lahto.k : '')}</div>
+      <div><label for="rt-kohde">Minne</label>${valinta('rt-kohde', [['', 'Oma etäisyys']].concat(kohteet.map(x => [x.k, x.nimi])), R.kohde)}</div></div>
+    <div class="rivi">${kohde ? `<p class="pieni" style="margin:4px 0">Matka linnuntietä <b>${fi(kmMatka, 1)} km</b>, suunta ${fi(suunta)}°</p>`
+      : `<div><label for="rt-km">Matka (km)</label><input id="rt-km" type="number" inputmode="decimal" min="0.1" max="30" step="0.1" value="${R.km}"></div>`}
+      <div><label for="rt-aika">Lähtö</label>${valinta('rt-aika', tunnit.map(t => [t, klo(t)]), R.lahtoMs)}</div>
+      <div><label for="rt-tunnit">Pyynnissä</label>${valinta('rt-tunnit', [2, 3, 4, 5, 6, 8, 10].map(x => [x, x + ' h']), R.tunnit)}</div></div>
+    <div class="rivi"><div><label for="rt-jaa">Teräsjää cm</label><input id="rt-jaa" type="number" inputmode="decimal" min="0" max="150" value="${J.jaa == null ? '' : J.jaa}" placeholder="mittaa"></div>
+      <div><label for="rt-tumma">Tumma kohvajää</label><input id="rt-tumma" type="number" inputmode="decimal" min="0" max="80" value="${R.tumma || ''}" placeholder="0"></div>
+      <div><label for="rt-lumi">Lunta cm</label><input id="rt-lumi" type="number" inputmode="decimal" min="0" max="100" value="${J.lumi}"></div>
+      <div><label for="rt-sohjo">Sohjoa cm</label><input id="rt-sohjo" type="number" inputmode="decimal" min="0" max="40" value="${J.sohjo}"></div></div>
+    <p class="pieni hiljainen" style="margin:2px 0">Jää: ${esc(J.lahde || 'ei mittausta lähellä – syötä')}${R.jaa != null || R.lumi != null || R.sohjo != null ? ' <button class="nappi toissijainen pieni" id="rt-nollaa">Mittauksesta</button>' : ''}.
+      Tehollinen = teräsjää + ½ jäähän kiinni jäätynyttä tummaa kohvajäätä; valkoista ei lasketa (Ilmatieteen laitos).</p>
+    <div class="rivi"><div><label for="rt-kuorma">Kuorma</label>${valinta('rt-kuorma', [['kevyt', 'Kevyt (reppu + kaira)'], ['keski', 'Keski (ahkio + luotain)'], ['raskas', 'Raskas (teltta, kamiina, 2 hlö)']], R.kuorma)}</div></div>`;
+  if (!S) h += `<p class="pieni"><b>Sääennustetta ei ole tälle paikalle.</b> Arvio ilman säätä.</p>`;
+  else if (sv.km > 25) h += `<p class="pieni hiljainen">Ennuste ${esc(S.nimi)}, ${fi(sv.km)} km päästä.</p>`;
+  if (J.teho == null) h += `<p class="pieni"><b>Jään paksuus puuttuu:</b> syötä mitattu teräsjää, niin kulkuvälineet voidaan verrata.</p>`;
+  if (paras) {
+    const r = paras, m = r.sMeno, p = r.sPaluu;
+    const saaRivi = (s, nimi, a, l, w) => s ? `${nimi} ${kloLyhyt(a)}–${kloLyhyt(l)}: ${fi(s.T)} °C, tuuli ${fi(s.ws)} (puuskat ${fi(s.wg)}) m/s ${PR.mista(s.wd)}; kulkiessa purevuus <b>${fi(w)} °C</b>` : `${nimi}: ei ennustetta`;
+    h += `<div class="rt-paras" style="border-left:4px solid ${HAITTA_VARI[r.haitta]};padding-left:8px;margin:8px 0">
+      <b>Nopein kantavuusohjeen täyttävä: ${esc(r.v.nimi)}</b><br>
+      <span class="pieni">Meno ${fi(r.menoMin)} min, paluu ${fi(r.paluuMin)} min ${tasoMerkki('laskettu')} · jää ${fi(J.teho)} cm, ohje ${fi(r.vaad, 1)} cm (${fi(r.massa)} kg; halkeamalla ${fi(r.vaadHalkeama, 1)} cm)</span>
+      <p class="pieni" style="margin:4px 0">${saaRivi(m, 'Meno', r.menoAlku, r.menoLoppu, r.hyyMeno)}<br>${saaRivi(p, 'Paluu', r.paluuAlku, r.paluuLoppu, r.hyyPaluu)}
+        ${r.hyyPaikalla != null ? `<br>Paikallaan pahin purevuus ${fi(r.hyyPaikalla)} °C` : ''} ${tasoMerkki('ennuste')}</p>
+      ${r.huom.length ? `<ul class="pieni" style="margin:2px 0 4px 18px">${r.huom.map(x => `<li style="color:${HAITTA_VARI[x.taso]}">${esc(x.teksti)}</li>`).join('')}</ul>` : '<p class="pieni">Ennusteessa ei huomioita retken ajalle.</p>'}
+      ${r.pys ? `<p class="pieni" style="margin:2px 0">Sammuta kone noin ${fi(r.pys)} m ennen paikkaa ja kävele loppu ${tasoMerkki('oletus')} (kokemussääntö, ei mittausta).</p>` : ''}
+      ${r.v.moottori ? '<p class="pieni hiljainen" style="margin:2px 0">Rannan lähellä alle 20 km/h; ajoneuvojen väli vähintään 50 m (Ilmatieteen laitos).</p>' : ''}</div>`;
+    // lähtöikkuna parhaalle välineelle
+    const ik = PR.lahtoikkuna(r.v, o, seurTunti, seurTunti + 48 * 3600e3);
+    h += `<p class="pieni" style="margin:6px 0 2px"><b>Lähtöikkuna 48 h – ${esc(r.v.nimi)}</b> (napauta tuntia)</p>
+      <div class="rt-ikkuna">${ik.map(x => `<button data-rt-t="${x.t}" title="${esc(klo(x.t) + ': ' + (x.syy || HAITTA_NIMI[x.haitta] || ''))}" class="${x.t === R.lahtoMs ? 'valittu' : ''}"
+        style="background:${x.haitta == null ? '#555' : HAITTA_VARI[x.haitta]}">${new Date(x.t).getHours() % 6 === 0 ? new Date(x.t).getHours() : ''}</button>`).join('')}</div>
+      <p class="pieni hiljainen" style="margin:2px 0">Vihreä: ei huomioita · keltainen: huomioi · oranssi: hankala · punainen: vaikea · harmaa: paluu ennusteen ulkopuolella.</p>`;
+  } else if (J.teho != null) h += `<p class="pieni" style="margin:8px 0"><b>Mikään valittu kulkuväline ei täytä kantavuusohjetta tai ehdi perille jumiutumatta.</b></p>`;
+  // kaikki välineet
+  h += `<div class="rt-lista">${tulokset.map(r => `<div class="lt-rivi pieni ${PR.kelpaa(r) ? '' : 'hiljainen'}">
+      <b>${esc(r.v.nimi)}</b> · ${tila(r)} (${fi(r.vaad, 1)} cm) · ${r.jumi ? `<b>${esc(r.jumi)}</b>` : `${fi(r.menoMin)} / ${fi(r.paluuMin)} min`}${r.kapOk ? '' : ' · kuorma ei mahdu'}
+      · purevuus ${fi(Math.min(r.hyyMeno ?? 99, r.hyyPaluu ?? 99))} °C · 60 min: ${fi(r.etenema60, 1)} km${r.kulut ? ` · ${fi(r.kulut.yht, 1)} €` : ''}</div>`).join('')}</div>`;
+  h += `<details><summary>Kulkuvälineet ja massat</summary>
+      <p class="pieni hiljainen">Massa = väline + kuljettaja + varusteet. Vaadittu jää: Ilmatieteen laitoksen taulukko (20 cm / 2,0 t … 100 cm / 48 t),
+        alle 2 t Goldin kaava h = √(m/5) [L], jalan vähintään 5 cm (SUH). Mönkijän kuivapaino 332 kg (Polaris) [T], muut [O].</p>
+      ${PR.VALINEET.map(v => `<div class="rivi" style="align-items:center"><label class="kytkin" style="flex:2"><input type="checkbox" data-rt-v="${v.id}" ${!R.kaytossa || R.kaytossa.includes(v.id) ? 'checked' : ''}> ${esc(v.nimi)}</label>
+        <div style="flex:1"><input type="number" inputmode="numeric" min="50" max="3000" data-rt-m="${v.id}" value="${R.massat[v.id] || v.massa}" aria-label="massa kg"></div><span class="pieni">kg</span></div>`).join('')}</details>
+    <details><summary>Kala ja pysäköinti</summary><div class="rivi">
+      <div><label for="rt-laji">Kohdekala</label>${valinta('rt-laji', [['ahven', 'Iso ahven (arka)'], ['siika', 'Siika (arka)'], ['kuha', 'Kuha'], ['hauki', 'Hauki / made']], R.laji)}</div>
+      <div><label for="rt-syv">Pyyntisyvyys</label>${valinta('rt-syv', [[2, '1–3 m'], [5, '4–7 m'], [12, '8–15 m']], R.syvyys)}</div></div>
+      <p class="pieni hiljainen">Pysäköintietäisyys on Geminin kokemussääntö (lumi vaimentaa, peilijää ja matala vesi kantavat ääntä) [O]. Karkotusprosentteja ei näytetä: niille ei ole lähdettä.</p></details>
+    <details><summary>Auto ja kärry</summary><div class="rivi">
+      <div><label for="rt-auto">Auto</label>${valinta('rt-auto', [['diesel', 'Diesel'], ['bensa', 'Bensa'], ['ev', 'Sähkö']], R.auto.tyyppi)}</div>
+      <div><label for="rt-akm">Tie km (meno-paluu)</label><input id="rt-akm" type="number" inputmode="numeric" value="${R.auto.km}"></div></div>
+      <div class="rivi"><div><label for="rt-kul">Kulutus /100 km</label><input id="rt-kul" type="number" inputmode="decimal" step="0.1" value="${R.auto.kulutus}"></div>
+      <div><label for="rt-hinta">${R.auto.tyyppi === 'ev' ? '€/kWh' : '€/l'}</label><input id="rt-hinta" type="number" inputmode="decimal" step="0.01" value="${R.auto.hinta}"></div>
+      <div><label for="rt-bensa">Jäällä €/l</label><input id="rt-bensa" type="number" inputmode="decimal" step="0.01" value="${R.bensa}"></div></div>
+      <p class="pieni hiljainen">Kärryn lisäkulutus +18 % kevyt / +35 % raskas (sähköauto +25 / +48 %) ja välineiden l/h ovat Geminin arvioita [O]. Hinnat ovat oletuksia – vaihda omiin.</p></details>
+    <p class="pieni hiljainen">Ei kerro, kantaako jää: ohje on suurin sallittu massa ehjälle, tasalaatuiselle jäälle. Halkeamalla kantavuus puolittuu ja risteävillä halkeamilla neljännes (Ilmatieteen laitos). Mittaa jää kulkiessa.
+      Purevuus kulkiessa: tuuli ja oma nopeus yhdessä, FMI:n pakkasvaroituksen tasot −25 / −35 / −40 °C (Keski-Suomi).</p>`;
+  el.innerHTML = h;
+  const aseta = (k, v) => { R[k] = v; tallennaRetki(); korttiRetki(konteksti()); };
+  const luku = (id, min, max) => { const x = parseFloat(String($(id).value).replace(',', '.')); return isFinite(x) && x >= min && x <= max ? x : null; };
+  $('rt-lahto').onchange = e => aseta('lahto', e.target.value);
+  $('rt-kohde').onchange = e => aseta('kohde', e.target.value);
+  if ($('rt-km')) $('rt-km').onchange = () => { const x = luku('rt-km', 0.1, 30); if (x != null) aseta('km', x); };
+  $('rt-aika').onchange = e => aseta('lahtoMs', +e.target.value);
+  $('rt-tunnit').onchange = e => aseta('tunnit', +e.target.value);
+  $('rt-kuorma').onchange = e => aseta('kuorma', e.target.value);
+  $('rt-jaa').onchange = () => aseta('jaa', luku('rt-jaa', 0, 150));
+  $('rt-tumma').onchange = () => aseta('tumma', luku('rt-tumma', 0, 80));
+  $('rt-lumi').onchange = () => aseta('lumi', luku('rt-lumi', 0, 100));
+  $('rt-sohjo').onchange = () => aseta('sohjo', luku('rt-sohjo', 0, 40));
+  if ($('rt-nollaa')) $('rt-nollaa').onclick = () => { R.jaa = R.lumi = R.sohjo = null; tallennaRetki(); korttiRetki(konteksti()); };
+  $('rt-laji').onchange = e => aseta('laji', e.target.value);
+  $('rt-syv').onchange = e => aseta('syvyys', +e.target.value);
+  $('rt-auto').onchange = e => { const t = e.target.value, oletus = { diesel: [6.0, 1.75], bensa: [7.4, 1.85], ev: [21, 0.22] }[t];
+    R.auto = Object.assign({}, R.auto, { tyyppi: t, kulutus: oletus[0], hinta: oletus[1] }); tallennaRetki(); korttiRetki(konteksti()); };
+  for (const [id, k, min, max] of [['rt-akm', 'km', 1, 2000], ['rt-kul', 'kulutus', 0.5, 60], ['rt-hinta', 'hinta', 0.01, 5]])
+    $(id).onchange = () => { const x = luku(id, min, max); if (x != null) { R.auto = Object.assign({}, R.auto, { [k]: x }); tallennaRetki(); korttiRetki(konteksti()); } };
+  $('rt-bensa').onchange = () => { const x = luku('rt-bensa', 0.5, 5); if (x != null) aseta('bensa', x); };
+  el.querySelectorAll('[data-rt-v]').forEach(b => b.onchange = () => {
+    R.kaytossa = [...el.querySelectorAll('[data-rt-v]')].filter(x => x.checked).map(x => x.dataset.rtV); tallennaRetki(); korttiRetki(konteksti()); });
+  el.querySelectorAll('[data-rt-m]').forEach(b => b.onchange = () => {
+    const x = parseFloat(b.value); if (isFinite(x) && x >= 50 && x <= 3000) { R.massat = Object.assign({}, R.massat, { [b.dataset.rtM]: x }); tallennaRetki(); korttiRetki(konteksti()); } });
+  el.querySelectorAll('[data-rt-t]').forEach(b => b.onclick = () => aseta('lahtoMs', +b.dataset.rtT));
 }
 
 // ---- karttakerrokset
@@ -2737,7 +2903,7 @@ korttiAlue();
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
     navigator.serviceWorker.register('sw.js').catch(() => {});
   setInterval(async () => { if (document.visibilityState === 'visible') { await lataaData(); piirra(); lataaSyvyydet(); lataaVaylat(); lataaVesi(); paivitaLpaikat(); } }, 30 * 60e3);
-  setInterval(() => { if (document.visibilityState === 'visible' && NAKYVA === 'tilanne' && !PUHE_KAYNNISSA && !document.activeElement.matches('input')) piirraTilanne(konteksti()); }, 5 * 60e3);
+  setInterval(() => { if (document.visibilityState === 'visible' && NAKYVA === 'tilanne' && !PUHE_KAYNNISSA && !document.activeElement.matches('input, select')) piirraTilanne(konteksti()); }, 5 * 60e3);
   setInterval(() => { if (KARTTA && NAKYVA === 'kartta') { KARTTA.piirra(); korttiReika(); } }, 60e3);   // haalistuminen ja reiän aika
 })();
 </script>
