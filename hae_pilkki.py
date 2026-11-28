@@ -27,6 +27,7 @@ import datetime as dt
 import json
 import math
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -34,8 +35,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-VERSIO = "v007"
-UA = "pilkkitutka/v007 (+https://lohirosvo.github.io/pilkkitutka/)"
+VERSIO = "v008"
+UA = "pilkkitutka/v008 (+https://lohirosvo.github.io/pilkkitutka/)"
 FMI_WFS = "https://opendata.fmi.fi/wfs"
 
 # Alue Kaskinen–Mikkelinsaaret [O: rajaus väljä, kattaa Kaskisen 62,33 ja Mikkelinsaarten 63,46]
@@ -901,6 +902,87 @@ def lue_json(polku):
         return {}
 
 
+# ---------------------------------------------------------------- Vaaralliset jääalueet (Tommi Lahtonen, hazor.iki.fi)
+# Hannu 28.11.2026: "Lupa on. Liitä viittaus tyypilliseen tapaan." Ensin selvitetään, missä muodossa kartan aineisto on
+# (sivu lataa sen JavaScriptillä, eikä sitä nähty Clauden työkaluilla). Tiedustelu kerran 30 vrk:ssa; dataa ei vielä kopioida.
+HAZOR_SIVU = "https://hazor.iki.fi/ice/danger"
+HAZOR_UUSINTA_VRK = 30
+HAZOR_PAATTEET = (".geojson", ".json", ".topojson", ".pmtiles", ".mbtiles", ".png", ".webp", ".jpg", ".jpeg", ".tif", ".tiff",
+                  ".pbf", ".mvt", ".bin", ".csv", ".gz", ".js")
+
+
+def hazor_urlit(teksti, pohja):
+    """Merkkijonosta kaikki URL-ehdokkaat (absoluuttiset ja suhteelliset datatiedostot sekä {z}/{x}/{y}-mallit) kontekstineen."""
+    out = {}
+    for m in re.finditer(r"""(?:src|href)\s*=\s*["']([^"']+)["']|["'`]((?:https?:)?//[^"'`\s]+|[^"'`\s]*\{z\}[^"'`\s]*|[\w./-]+\.(?:geojson|topojson|pmtiles|mbtiles|json|png|webp|tif|tiff|pbf|mvt|bin|csv|gz|js))["'`]""", teksti):
+        u = m.group(1) or m.group(2)
+        if not u or u.startswith(("data:", "#", "mailto:")):
+            continue
+        absu = urllib.parse.urljoin(pohja, u)
+        if absu not in out:
+            a, b = max(0, m.start() - 90), min(len(teksti), m.end() + 90)
+            out[absu] = teksti[a:b].replace("\n", " ")
+    return out
+
+
+def hae_hazor_tiedustelu(data_kansio, ed):
+    vanha = ed or {}
+    if vanha.get("ok") and vanha.get("haettu"):
+        try:
+            ika = (nyt_utc() - dt.datetime.fromisoformat(vanha["haettu"].replace("Z", "+00:00"))).days
+            if ika < HAZOR_UUSINTA_VRK:
+                # julkaisu korvaa koko sivuston -> edellinen tiedosto kopioidaan julkaistulta sivulta (ei kuormiteta hazoria)
+                kansio = os.path.join(data_kansio, "hazor"); os.makedirs(kansio, exist_ok=True)
+                with open(os.path.join(kansio, "tiedustelu.json"), "wb") as f:
+                    f.write(http_get(f"{SIVU}data/hazor/tiedustelu.json", yrityksia=2, aikaraja=60))
+                print(f"  edellinen tiedustelu {ika} vrk vanha – kopioitu julkaisusta")
+                return vanha
+        except Exception as e:
+            print(f"  edellistä tiedustelua ei saatu ({e}) – tehdään uusi")
+    sivu = http_get(HAZOR_SIVU, yrityksia=2, aikaraja=60).decode("utf-8", "replace")
+    loydetyt = hazor_urlit(sivu, HAZOR_SIVU)
+    oma = lambda u: u.split("?")[0].endswith(".js") and urllib.parse.urlparse(u).netloc.endswith("hazor.iki.fi")
+    skriptit, haetut = [u for u in loydetyt if oma(u)], set()
+    for _ in range(2):                      # sivun skriptit ja niiden tuomat skriptit, yhteensä enintään 8
+        for u in [x for x in skriptit if x not in haetut][:8 - len(haetut)]:
+            haetut.add(u)
+            try:
+                js = http_get(u, yrityksia=2, aikaraja=60).decode("utf-8", "replace")
+                for k, v in hazor_urlit(js, u).items():
+                    loydetyt.setdefault(k, v)
+                print(f"  skripti {u}: {len(js)} merkkiä")
+            except Exception as e:
+                print(f"  skripti {u}: {e}")
+        skriptit = [u for u in loydetyt if oma(u)]
+    ehdokkaat = []
+    for u, konteksti in loydetyt.items():
+        polku = urllib.parse.urlparse(u).path.lower()
+        if not ("{z}" in u or polku.endswith(HAZOR_PAATTEET)):
+            continue
+        rivi = {"url": u, "konteksti": konteksti[:240]}
+        if "{z}" not in u and not polku.endswith(".js") and len(ehdokkaat) < 40:
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": UA, "Range": "bytes=0-511"})
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    alku = r.read(512)
+                    rivi.update(tila=r.status, tyyppi=r.headers.get("Content-Type"), koko=r.headers.get("Content-Range") or r.headers.get("Content-Length"),
+                                alku=alku[:160].decode("utf-8", "replace"))
+            except Exception as e:
+                rivi["virhe"] = f"{type(e).__name__}: {e}"[:160]
+        ehdokkaat.append(rivi)
+    tulos = {"ok": True, "haettu": iso(nyt_utc()), "sivu": HAZOR_SIVU, "sivun_koko": len(sivu),
+             "otsikko": (re.search(r"<title>([^<]*)</title>", sivu) or [None, None])[1], "skriptit": skriptit, "ehdokkaat": ehdokkaat,
+             "huom": "Tiedustelu: aineiston muoto. Tommi Lahtonen antoi luvan käyttöön (Hannu 28.11.2026)."}
+    kansio = os.path.join(data_kansio, "hazor")
+    os.makedirs(kansio, exist_ok=True)
+    with open(os.path.join(kansio, "tiedustelu.json"), "w", encoding="utf-8") as f:
+        json.dump(tulos, f, ensure_ascii=False, indent=1)
+    print(f"  sivu {len(sivu)} merkkiä, skriptejä {len(skriptit)}, data-ehdokkaita {len(ehdokkaat)}")
+    for r in ehdokkaat[:25]:
+        print(f"    {r['url']}  {r.get('tila', '')} {r.get('tyyppi', '')} {r.get('koko', '')} {r.get('virhe', '')}")
+    return {k: tulos[k] for k in ("ok", "haettu", "sivun_koko", "otsikko")} | {"ehdokkaita": len(ehdokkaat), "polku": "data/hazor/tiedustelu.json"}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Pilkkitutka – hakuajo")
     ap.add_argument("ulos")
@@ -942,6 +1024,7 @@ def main(argv=None):
     # epäonnistuessa työnkulku on jo kopioinut edellisen vesi.json:n paikalleen -> viittaus edelliseen
     data["vesi"] = vaihe("vesi", lambda: hae_vesi(nyt, os.path.dirname(os.path.abspath(args.ulos))), ed.get("vesi"))
     data["jarvet"] = vaihe("jarvet", lambda: hae_jarvet(nyt, ed.get("jarvet")), ed.get("jarvet"))
+    data["hazor"] = vaihe("hazor", lambda: hae_hazor_tiedustelu(os.path.dirname(os.path.abspath(args.ulos)), ed.get("hazor")), ed.get("hazor"))
     if args.tilasto:
         data["vk_tilasto"] = vaihe("vk_tilasto", lambda: laske_tilasto(nyt), ed.get("vk_tilasto"))
     else:
